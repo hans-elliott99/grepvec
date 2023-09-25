@@ -1,5 +1,6 @@
-# dyn.unload("grepvec.R")
-dyn.load("grepvec.so")
+dyn.load("src/grepvec.so")
+
+# TODO: specify flags to pass to regcomp?
 
 #' Search a vector of strings for matches in a vector of sub-strings
 #' 
@@ -7,19 +8,24 @@ dyn.load("grepvec.so")
 #' returning either the first or last match (if any are found). It does not (yet)
 #' utilize regular expressions, so it is looking for exact sub-string matches
 #' (like `grep` with argument fixed = TRUE, see `?grep`).
-#' 
+#'
+#'  
 #' @param haystacks A character vector of strings which will be searched over
-#'   for sub-strings.
-#' @param needles A character vector of sub-strings which will be searched for
-#'   in haystacks.
-#' @param usefirst Logical, default TRUE. If TRUE, the first match found in
+#'   for sub-string / regex matches.
+#' @param needles A character vector of expressions which will be searched for
+#'   in haystacks as sub-strings or regexs, depending on the `fixed` argument.
+#' @param fixed Logical, default FALSE. If TRUE, treat each string in needles as
+#'   an exact sub-string to find. If FALSE, needles are treated as regular
+#'   expressions.
+#' @param matchrule Character, default "all". If "first", the first match found in
 #'   needles is returned for each string in haystack. This may improve performance
 #'   for large needle vectors since the search process can stop as soon as a
-#'   match is found. If FALSE, the search process will continue until every
+#'   match is found. If "last", the search process will continue until every
 #'   sub-string in needles has been tested, and the last found match will be
-#'   returned.
-#' @return An integer vector with length equal to length(haystacks) containing
-#'   the index of the matched sub-string for each string in haystacks (or 0 if
+#'   returned. If "all", a vector will be returned containing the indices of
+#'   all found matches in `needles`.
+#' @return A list of integer vectors with length equal to length(haystacks), each
+#'   vector containing the indices of succesfully matched needle strings (or 0 if
 #'   no match is found).
 #' @examples
 #' grepvec(c("some string 1", "another string"),
@@ -27,24 +33,43 @@ dyn.load("grepvec.so")
 grepvec <- function(haystacks,
                     needles,
                     fixed = FALSE,
-                    usefirst = TRUE) {
+                    matchrule = c("all", "first", "last")) {
     stopifnot(is.character(haystacks))
     stopifnot(is.character(needles))
     stopifnot(is.logical(fixed))
-    stopifnot(is.logical(usefirst))
-    n1 <- length(haystacks)
-    n2 <- length(needles)
-    x <- .C("grepvec",
-            haystacks, n1,
-            needles, n2,
-            matches = integer(n1),
-            fixed = as.integer(fixed),
-            usefirst = as.integer(usefirst))
-    return(x$matches)
+    stopifnot(is.character(matchrule))
+    .rules <- c("all", "first", "last")
+    if (all(matchrule == .rules)) {
+        matchrule <- "all"
+    }
+    if (! matchrule %in% .rules) {
+        stop(paste("Provide one of the following for argument 'matchrule':",
+                   paste(.rules, collapse = ", ")
+        ))
+    }
+    .matchrule <- switch(matchrule,
+                         all   = 0L,
+                         first = 1L,
+                         last  = 2L)
+    # grepvec_* (haystacks, needles, matchrule)
+    if (fixed)
+        x <- .Call("grepvec_fixed",
+                   haystacks, needles, .matchrule)
+    else
+        x <- .Call("grepvec_regex",
+                   haystacks, needles, .matchrule)
+
+    return(x)
 }
 
-# .C("test", "hello")
-# .C("test1", c("hello", "[", "goodbye", "[", "hans"), 5L)
-# haystacks = c("hello", "goodbye", "hello", "a", "a", "a", "a", NA_character_)
-# needles = c("hello", "[]")
-# grepvec(haystacks, needles)
+
+# dyn.unload("grepvec.so")
+# dyn.load("grepvec.so")
+# 
+# haystacks = c("hello", "goodbye", "hello", "a", "ba", "aa", "ba", NA_character_)
+# needles = c("hello", "[]", "^a", ".o")
+# matchrule = "first"
+# 
+# .Call("grepvec_fixed",
+#        haystacks, needles,
+#        matchrule = 0L)

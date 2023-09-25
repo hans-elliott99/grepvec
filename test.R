@@ -1,6 +1,8 @@
 source("grepvec.R")
 shakespeare_url <- "https://ocw.mit.edu/ans7870/6/6.006/s08/lecturenotes/files/t8.shakespeare.txt"
 
+# TODO: compare w old C vector method
+
 gen_word_list <- function(lines, n = 10) {
     li <- as.integer(runif(n, 1, length(lines)))
     words <- paste(lines[li], collapse = " ")
@@ -19,7 +21,7 @@ ndl <- words
 cat("N Hay =", format(length(hay), big.mark=","),
     "| N Needle =", format(length(ndl), big.mark=","), fill=TRUE)
 t0 <- Sys.time()
-x <- grepvec(hay, ndl, usefirst=FALSE)
+x <- grepvec(hay, ndl, fixed = FALSE, matchrule = "all")
 t1 <- Sys.time()
 difftime(t1, t0)
 
@@ -32,7 +34,7 @@ t2 <- txt
 t2[hans_idx] <- "HANS"
 
 t0 <- Sys.time()
-x <- grepvec(t2, w2, usefirst=TRUE)
+x <- grepvec(t2, w2, fixed = FALSE, matchrule = "first")
 t1 <- Sys.time()
 difftime(t1, t0)
 
