@@ -110,6 +110,9 @@ SEXP grepvec_regex(SEXP haystck,
         }
         SETLENGTH(mtchs_i, (n == 0) ? 1 : n); // rm extra space allocated to match vec
         SET_VECTOR_ELT(matches, i, mtchs_i);
+        // all elements of a protected list are automatically protected
+        // https://cran.r-project.org/doc/manuals/R-exts.html#Garbage-Collection
+        UNPROTECT(1);
     }
 
     // free mem used for regexes allocated in regcomp
@@ -123,7 +126,7 @@ SEXP grepvec_regex(SEXP haystck,
     if (mr == RETURNLAST)
         uselastmatch(matches, Nh);
 
-    UNPROTECT(Nh + 1);
+    UNPROTECT(1);
     return matches;
 }
 
@@ -175,12 +178,15 @@ SEXP grepvec_fixed(SEXP haystck,
         }
         SETLENGTH(mtchs_i, (n == 0) ? 1 : n);
         SET_VECTOR_ELT(matches, i, mtchs_i);
+        // all elements of a protected list are automatically protected
+        // https://cran.r-project.org/doc/manuals/R-exts.html#Garbage-Collection
+        UNPROTECT(1);
     }
 
     // keeplast
     if (mr == RETURNLAST)
         uselastmatch(matches, Nh);
 
-    UNPROTECT(Nh + 1);
+    UNPROTECT(1);
     return matches;
 }
