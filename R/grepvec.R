@@ -8,8 +8,8 @@
 #'
 #' @section grepvec functions:
 #' `grepvec(haystacks, needles, matchrule = "all", fixed = FALSE)`
-#' `to.haystacks(results, haystacks)`
-#' `to.needles(results, needles)`
+#' `to_hay(results, haystacks)`
+#' `to_ndl(results, needles)`
 #'
 #' @docType package
 #' @name grepvec

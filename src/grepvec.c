@@ -1,25 +1,11 @@
 /* grepvec.c
  * search vector of string with vector of sub-strings
  * Author: Hans Elliott
- * Date: 2023-09-13
- * 
- * NOTES:
- * To re-compile:> R CMD SHLIB grepvec.c
- * 
- * TODO:
- * - Option to return all matched sub-strings/patterns, not just first or last -
- *   would have to have a vector for each string, grow manually as matches found
- */
-#include <stdio.h>  //fprintf
-#include <stdlib.h> //malloc
-#include <string.h> //strcpy
-#include <regex.h>  //regcomp,regexec,regfree
-#include <R.h>
-#include <Rinternals.h>
-
-char rgxmsg[100];
-
-/* grepvec - search for all sub-strings in needles within each string in haystck
+ * Date: 2023-11-07
+ * License: MIT 2023 Hans Elliott
+ *
+ *
+ *
  * Args:
  *   haystck - character(n_hay) of strings to search over
  *   needles - character(n_ndl) of sub-strings to search with
@@ -27,12 +13,21 @@ char rgxmsg[100];
  *   usefirst - integer(1), if 1 use first match, if 0 use last match
  */
 
+#include <stdlib.h> //malloc,calloc
+#include <string.h> //memset
+#include <regex.h>  //regcomp,regexec,regfree
+#include <R.h>
+#include <Rinternals.h>
+
+char rgxmsg[100];
 
 ////////// HELPERS //////////
 // Matchrule
-int RETURNALL = 0;
-int RETURNFIRST = 1;
-int RETURNLAST = 2;
+enum {
+    RETURNALL = 0,
+    RETURNFIRST = 1,
+    RETURNLAST = 2,
+} matchrule_e;
 
 
 void uselastmatch(SEXP matches, int Nh) {
@@ -71,7 +66,7 @@ SEXP grepvec_regex(SEXP haystck,
     int Nn = length(needles);
     int mr = INTEGER(matchrule)[0];
     int Nm = (mr == RETURNFIRST) ? 1 : Nn; // len of match vector for each haystck str
-    
+
     // result vector - list of integer vectors
     SEXP matches = PROTECT(allocVector(VECSXP, Nh));
 
@@ -155,7 +150,7 @@ SEXP grepvec_fixed(SEXP haystck,
     int Nn = length(needles);
     int mr = INTEGER(matchrule)[0];
     int Nm = (mr == RETURNFIRST) ? 1 : Nn; // len of match vector for each haystck str
-    
+
     // result vector - list of integer vectors
     SEXP matches = PROTECT(allocVector(VECSXP, Nh));
 

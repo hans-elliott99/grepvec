@@ -91,7 +91,7 @@ grepvec <- function(haystacks,
 #'   the patterns from needles which matched to the given haystack string.
 #'
 #' @export
-to.needles <- function(results, needles) {
+to_ndl <- function(results, needles) {
     stopifnot(is.list(results))
     stopifnot(is.character(needles))
     return(.idx2char(results, needles))
@@ -113,7 +113,7 @@ to.needles <- function(results, needles) {
 #'   the strings from haystack which matched to the given needle pattern.
 #'
 #' @export
-to.haystacks <- function(results, haystacks) {
+to_hay <- function(results, haystacks) {
     stopifnot(is.list(results))
     stopifnot(is.character(haystacks))
     names(results) <- seq_along(results) #stack requires names

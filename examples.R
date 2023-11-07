@@ -1,4 +1,4 @@
-# devtools::load_all() or devtools::install() may be needed
+# devtools::load_all() # or devtools::install() may be needed
 library(grepvec)
 library(microbenchmark)
 
@@ -17,6 +17,7 @@ gen_word_list <- function(lines, n = 10) {
 txt <- trimws(readLines(shakespeare_url))
 words <- gen_word_list(txt, n = 2000)
 
+grepvec(txt[1:1000], words)
 
 # test grepvec
 hay <- c(txt, txt, txt, txt)
@@ -54,8 +55,8 @@ all(which(unlist(x) == 1) == hans_idx)
 
 # convert the idx list to character lists, of haystacks or needles
 res <- grepvec(txt[1:10], strsplit(txt[1], " ")[[1]])
-to.needles(res, words)
-to.haystacks(res, txt)
+to_ndl(res, words)
+to_hay(res, txt)
 
 
 # compare with existing R solutions -------------------------------------------
@@ -108,12 +109,3 @@ microbenchmark(loop_grep(txt, shortndls),
 #>    loop_grep(txt, ndls) 5.942300 6.143407 6.309293 6.238158 6.531905 6.716219
 #>  lapply_grep(txt, ndls) 5.946089 6.183130 6.682903 6.651146 6.872943 8.212148
 #>      grepvec(txt, ndls) 1.398782 1.454352 1.532908 1.466876 1.561440 1.894956
-
-
-
-# -----------------------------------------------------------------------------
-# old method with .C interface
-# source("archive/Cgrepvec.R")
-# microbenchmark(grepvec(txt, words, matchrule = "first"),
-#                grepvecC(txt, words, usefirst = TRUE),
-#                times = 10)

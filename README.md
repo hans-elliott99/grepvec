@@ -14,7 +14,7 @@ Use 'grepvec' to search a vector of strings (the haystacks) for matches in a vec
 This project is in development. I have used it effectively in my own work for keyword-search related tasks, but it lacks testing by other users. If you find it useful please let me know, and let me know how I might improve it to better suit your needs. Thanks!
 
 ## Install
-Since this package is not on CRAN, you can install in R with `devtools::install_github("hans-elliott99/grepvec)`
+Since this package is not on CRAN, you can install it in R with `devtools::install_github("hans-elliott99/grepvec")`
 
 ## Examples
 For now, please see `examples.R`.
