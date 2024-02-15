@@ -9,12 +9,13 @@
  * Args:
  *   haystck - character(n_hay) of strings to search over
  *   needles - character(n_ndl) of sub-strings to search with
+ *   matchrule - integer(1), 0 for all matches, 1 for first, 2 for last
  *   fixed - integer(1), if 1 look for exact sub-string match, else use regex
- *   usefirst - integer(1), if 1 use first match, if 0 use last match
  */
 
 #include <stdlib.h> //malloc,calloc
 #include <string.h> //memset
+#include <ctype.h>  //tolower
 #include <regex.h>  //regcomp,regexec,regfree
 #include <R.h>
 #include <Rinternals.h>
@@ -38,6 +39,7 @@ void uselastmatch(SEXP matches, int Nh) {
         // the last idx, remove all other elements
         vec = VECTOR_ELT(matches, i);
         m = length(vec);
+        if (m == 0) continue;
         INTEGER(vec)[0] = INTEGER(vec)[m-1];
         SETLENGTH(vec, 1);
     }
@@ -61,64 +63,72 @@ int matchregex(const char **str, regex_t *rgx) {
 
 SEXP grepvec_regex(SEXP haystck,
                    SEXP needles,
-                   SEXP matchrule) {
+                   SEXP matchrule,
+                   SEXP ignorecase) {
     int Nh = length(haystck);
     int Nn = length(needles);
-    int mr = INTEGER(matchrule)[0];
-    int Nm = (mr == RETURNFIRST) ? 1 : Nn; // len of match vector for each haystck str
+    int mrule = INTEGER(matchrule)[0];
+     // inital length of match vector for each hay
+    int Nm = (mrule == RETURNFIRST) ? 1 : Nn;
 
     // result vector - list of integer vectors
     SEXP matches = PROTECT(allocVector(VECSXP, Nh));
 
-    int i, j, reti, n, mtch;
+    int i, j, reti, nmatch, mtch_result;
     regex_t *rgxarr;
-    int *skipidx; // 1 if we regex at idx j did not compile
-    // compile patterns into regexes, store in array
-    // (heap allocate to avoid stack overflow)
+    int *skipidx; // 1 if the regex at idx j did not compile
+    /*
+        compile patterns into regexes, store in array
+        (heap allocate to avoid stack overflow)
+    */
+    int regflags = REG_EXTENDED|REG_NOSUB;
+    if (INTEGER(ignorecase)[0] == 1) regflags |= REG_ICASE;
     rgxarr = malloc(sizeof(regex_t) * Nn);
     skipidx = calloc(Nn, sizeof(int));
     for (j=0; j < Nn; j++) {
         const char *ndl = CHAR(STRING_ELT(needles, j));
-        reti = regcomp(&rgxarr[j], ndl, REG_EXTENDED|REG_NOSUB);
+        reti = regcomp(&rgxarr[j], ndl, regflags);
         if (reti != 0) {
             warning("Could not compile regex for pattern: %s\n", ndl);
             skipidx[j] = 1;
         }
     }
-
-    // iterate and compare string i with pre-compiled regex j
+    /*
+        iterate and compare string i with pre-compiled regex j
+    */
     for (i=0; i < Nh; i++) {
         SEXP mtchs_i = PROTECT(allocVector(INTSXP, Nm));
         memset(INTEGER(mtchs_i), 0, Nm * sizeof(int));
         const char *hay = CHAR(STRING_ELT(haystck, i));
-        n = 0; // num matches for string i
+        nmatch = 0; // num matches for string i
 
         for (j=0; j < Nn; j++) {
             if (skipidx[j] == 0) {
-                mtch = matchregex(&hay, &rgxarr[j]);
-                if (mtch == 1) {
-                    INTEGER(mtchs_i)[n] = j + 1; // R's idx for the current ndl
-                    n++;
-                    if (mr == RETURNFIRST) break;
+                mtch_result = matchregex(&hay, &rgxarr[j]);
+                if (mtch_result == 1) {
+                    INTEGER(mtchs_i)[nmatch] = j + 1; // R's idx for current ndl
+                    nmatch++;
+                    if (mrule == RETURNFIRST) break;
                 }
             }
         }
-        SETLENGTH(mtchs_i, (n == 0) ? 1 : n); // rm extra space allocated to match vec
+        // rm extra space allocated to match vec
+        SETLENGTH(mtchs_i, (nmatch == 0) ? 0 : nmatch);
         SET_VECTOR_ELT(matches, i, mtchs_i);
         // all elements of a protected list are automatically protected
         // https://cran.r-project.org/doc/manuals/R-exts.html#Garbage-Collection
         UNPROTECT(1);
     }
-
-    // free mem used for regexes allocated in regcomp
+    /*
+        free mem used for regexes allocated in regcomp
+    */
     for (j=0; j < Nn; j++) {
         if (skipidx[j] == 0) regfree(&rgxarr[j]);
     }
     free(rgxarr);
     free(skipidx);
 
-    // keeplast
-    if (mr == RETURNLAST)
+    if (mrule == RETURNLAST)
         uselastmatch(matches, Nh);
 
     UNPROTECT(1);
@@ -127,59 +137,100 @@ SEXP grepvec_regex(SEXP haystck,
 
 
 ////////// FIXED //////////
+/*
+* case insensitive strstr
+* credit:
+* https://stackoverflow.com/questions/27303062/strstr-function-like-that-ignores-upper-or-lower-case
+*/
+char* stristr(const char *haystack, const char *needle) {
+    const char *p1 = haystack;
+    const char *p2 = needle;
+    const char *r = *p2 == 0 ? haystack : 0;
+
+    while(*p1 != 0 && *p2 != 0) {
+        if (tolower((unsigned char)*p1) == tolower((unsigned char)*p2)) {
+            if (r == 0)
+                r = p1;
+            p2++;
+        } else {
+            p2 = needle;
+            if (r != 0)
+                p1 = r + 1;
+            if (tolower((unsigned char)*p1) == tolower((unsigned char)*p2)) {
+                r = p1;
+                p2++;
+            } else {
+                r = 0;
+            }
+        }
+        p1++ ;
+    }
+    return *p2 == 0 ? (char*)r : NULL;
+}
+
+
+
 /* Search for sub-string exactly as it is.
  * (like using grep with fixed = TRUE / no regular expression)
  *   str - string to search over
  *   sub - sub-string to search for
  *   returns 1 if the sub-string is found
  */
-int matchfixed(const char **str, const char **sub) {
-    char *res = strstr(*str, *sub);
-    if (res != NULL) {
-        return 1;
+int matchfixed(const char **str, const char **sub, int ignorecase) {
+    char *res;
+    if (ignorecase == 1) {
+        res = stristr(*str, *sub);
     } else {
+        res = strstr(*str, *sub);
+    }
+    if (res == NULL) {
         return 0;
+    } else {
+        return 1;
     }
 }
 
 
 SEXP grepvec_fixed(SEXP haystck,
                    SEXP needles,
-                   SEXP matchrule) {
+                   SEXP matchrule,
+                   SEXP ignorecase) {
     int Nh = length(haystck);
     int Nn = length(needles);
-    int mr = INTEGER(matchrule)[0];
-    int Nm = (mr == RETURNFIRST) ? 1 : Nn; // len of match vector for each haystck str
+    int mrule = INTEGER(matchrule)[0];
+     // inital length of match vector for each hay
+    int Nm = (mrule == RETURNFIRST) ? 1 : Nn;
 
     // result vector - list of integer vectors
     SEXP matches = PROTECT(allocVector(VECSXP, Nh));
 
-    int i, j, n, mtch;
-    // iterate and look for exact sub-string j in string i
+    int i, j, nmatch, mtch_result;
+    /*
+        iterate and look for exact sub-string j in string i
+    */
     for (i=0; i < Nh; i++) {
         SEXP mtchs_i = PROTECT(allocVector(INTSXP, Nm));
         memset(INTEGER(mtchs_i), 0, Nm * sizeof(int));
         const char *hay = CHAR(STRING_ELT(haystck, i));
-        n = 0; // num matches for string i
+        nmatch = 0; // num matches for string i
 
         for (j=0; j < Nn; j++) {
             const char *ndl = CHAR(STRING_ELT(needles, j));
-            mtch = matchfixed(&hay, &ndl);
-            if (mtch == 1) {
-                INTEGER(mtchs_i)[n] = j + 1; // R's idx for current ndl
-                n++;
-                if (mr == RETURNFIRST) break;
+            mtch_result = matchfixed(&hay, &ndl, INTEGER(ignorecase)[0]);
+            if (mtch_result == 1) {
+                INTEGER(mtchs_i)[nmatch] = j + 1; // R's idx for current ndl
+                nmatch++;
+                if (mrule == RETURNFIRST) break;
             }
         }
-        SETLENGTH(mtchs_i, (n == 0) ? 1 : n);
+        SETLENGTH(mtchs_i, (nmatch == 0) ? 0 : nmatch);
         SET_VECTOR_ELT(matches, i, mtchs_i);
         // all elements of a protected list are automatically protected
         // https://cran.r-project.org/doc/manuals/R-exts.html#Garbage-Collection
         UNPROTECT(1);
     }
 
-    // keeplast
-    if (mr == RETURNLAST)
+    if (mrule == RETURNLAST)
         uselastmatch(matches, Nh);
 
     UNPROTECT(1);

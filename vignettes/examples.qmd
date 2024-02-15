@@ -1,0 +1,255 @@
+---
+title: "grepvec demo"
+format: 
+  gfm:
+    toc: true
+---
+
+
+
+```{r}
+# make sure you installed via remotes::install_github or devtools
+library(grepvec)
+library(microbenchmark)
+set.seed(1614)
+
+#
+# create some data
+#
+shakespeare_url <- "https://ocw.mit.edu/ans7870/6/6.006/s08/lecturenotes/files/t8.shakespeare.txt"
+txt <- trimws(readLines(shakespeare_url))
+
+#
+# get some random words from the txt to use as patterns
+#
+gen_word_list <- function(lines, n = 10) {
+    li <- as.integer(runif(n, 1, length(lines)))
+    words <- paste(lines[li], collapse = " ")
+    words <- unique(strsplit(words, " ")[[1]])
+    words <- words[words != ""]
+    words <- words[as.integer(runif(n, 1, length(words)))]
+    words <- gsub("\\[|\\]|\\(|\\)", "", words)
+    return(words)
+}
+
+```
+
+
+## Examples
+
+```{r}
+grepvec(c("one", "possib", "many"),
+        c("Some text which might possibly contain one of many keywords",
+          "Another string without many words",
+          "A third impossibly boring string",
+          "Done"))
+
+grepvec(letters[1:6], c("AbC", 123), ignore_case = TRUE, value = TRUE)
+
+grepvec("^regex$", "regex")
+
+grepvec("^fixed$", "fixed", fixed = TRUE)
+
+```
+
+By default `grepvec` returns a list of the needle indexes matching to each haystack, but there are other options. For example, we can return a grepvec object which stores the results along with the data needed to transform the results into other formats.  
+
+
+
+```{r}
+words <- gen_word_list(txt, n = 2000)
+m <- grepvec(words, txt[1:1000], matchrule = "all", out = "object")
+# show indices of needle matches (default behavior)
+head(by_hay(m))
+# convert indices to the corresponding strings
+head(setNames(by_hay(m, value = TRUE), m$haystacks))
+# transpose so we can see the haystacks that matched to each needle
+head(setNames(by_ndl(m, value = TRUE), m$needles))
+
+# print object
+print(m)
+```
+
+
+```{r}
+# lengths == 0 (no matches) or 1 (some match) if matchrule = "first" or "last"
+# note, matchrule = "first" will always be faster than "last" or "all"
+all(lengths(grepvec(words, txt[1:1000], matchrule = "first")) ==
+        lengths(grepvec(words, txt[1:1000], matchrule = "last")))
+```
+
+It is easy to calculate the number of matching patterns across a vector of strings. For example, as a column in a data.frame:  
+
+```{r}
+# get number of matches in pattern vector, e.g., for a data.frame column
+patterns <- gen_word_list(txt, n = 2000)
+ex <- data.frame(txt_col = txt[300:500])
+ex <- transform(ex,
+                n_match_rgx = lengths(grepvec(patterns, txt_col)),
+                n_match_fxd = lengths(grepvec(patterns, txt_col, fixed = TRUE)))
+head(ex)
+```
+
+Returning the grepvec object may be useful if you have a few operations to perform:  
+
+```{r}
+txt_var <- txt[300:500]
+(res <- grepvec(patterns, txt_var, out = "object"))
+match_ixs <- by_hay(res)
+match_vals <- lapply(by_hay(res, value = TRUE),
+                     \(vec) if (length(vec) == 0) NA else vec)
+
+
+ex <- data.frame(txt_col = txt_var,
+                 n_matches = lengths(match_ixs),
+                 first_match = unlist(lapply(match_vals, `[[`, 1)),
+                 matches = vapply(match_vals,
+                                  paste,
+                                  character(1L),
+                                  collapse = ", "))
+head(ex)
+```
+
+
+Be careful when unlisting the results, because if no match was found a 0 length vector is returned.
+
+
+```{r}
+res <- grepvec(patterns, txt_var, matchrule = "first")
+head(res)
+
+length(res)
+length(unlist(res))
+
+# helper function for flattening a list of vectors with length 0 or 1
+flatten <- function(x, keepdim = TRUE) {
+    if (keepdim) {
+        x <- lapply(x, \(vec) if (length(vec) == 0) NA else vec[1L])
+    }
+    return(unlist(x))
+}
+
+length(flatten(res))
+
+```
+
+
+Invalid regex patterns:  
+
+```{r}
+# what if we use an invalid regex pattern?
+grepvec(c("[bad", "(regex"), "those are bad regex patterns")
+
+# grep is similair but also errors out
+tryCatch(
+    grep(c("[bad", "(regex"), "those are bad regex patterns"),
+    error = \(e) { cat("grep error message:\n"); conditionMessage(e) }
+)
+```
+
+
+## Speed
+
+```{r}
+# test grepvec on some bigger vectors
+hay <- c(txt, txt, txt, txt)
+ndl <- words
+cat("N Hay =", format(length(hay), big.mark = ","),
+    "| N Needle =", format(length(ndl), big.mark = ","), "\n")
+
+t0 <- Sys.time()
+suppressWarnings({
+    x <- grepvec(ndl, hay, fixed = FALSE, matchrule = "all")
+})
+difftime(Sys.time(), t0)
+
+# returning only the first match is faster
+t0 <- Sys.time()
+suppressWarnings({
+    x <- grepvec(ndl, hay, fixed = FALSE, matchrule = "first")
+})
+difftime(Sys.time(), t0)
+```
+
+
+```{r}
+# large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
+# PROTECTion stack overflow if list elemements are not unprotected as soon as
+# added to list (in grepvec.c)
+longndls <- gen_word_list(txt, length(txt))
+# "banana" is not in shakespeare,
+#  so put it at some indices so we can verify that the results are correct
+all(lengths(grepvec("banana", txt)) == 0)
+longndls[1] <- "banana" # so now it's a pattern to search for
+banan_idx <- c((1:100)^2, length(txt))
+somehay <- txt
+somehay[banan_idx] <- "banana"
+
+# basically a >15 billion element matrix
+cat("N Hay =", format(length(somehay), big.mark = ","),
+    "| N Needle =", format(length(longndls), big.mark = ","), "\n")
+t0 <- Sys.time()
+suppressWarnings({
+    x <- grepvec(longndls, somehay, matchrule = "first", out = "obj")
+})
+difftime(Sys.time(), t0)
+
+# the only strings that matched to needle 1 should be those at 'banan_idx'
+xix <- by_hay(x)
+all(which(unlist(xix) == 1) == banan_idx)
+unique(by_hay(x, value = TRUE)[which(flatten(xix) == 1)])
+```
+
+
+## Compare grepvec with native R solutions
+
+Suggestions wanted.
+
+```{r}
+#
+# implement as if matchrule = last, and use try because grep errors if bad regex
+#
+loop_grep <- function(needles, haystacks) {
+    x <- vector(mode = "list", length = length(haystacks))
+    for (i in seq_along(needles)) {
+        try({
+            matchinds <- grep(needles[i], haystacks)
+            x[matchinds] <- i #lapply(x[matchinds], \(vec) c(vec, i))
+        }, silent = TRUE)
+    }
+    return(x)
+}
+
+lapply_grep <- function(needles, haystacks) {
+    x <- vector(mode = "list", length = length(haystacks))
+    .fn <- \(ndl) {
+        try({
+            matchinds <- grep(ndl, haystacks)
+            return(matchinds)
+        }, silent = TRUE)
+        return(NULL)
+    }
+    ndlmtches <- lapply(needles, .fn)
+    for (i in seq_along(needles)) {
+        matchinds <- ndlmtches[[i]]
+        x[matchinds] <- i #lapply(x[matchinds], \(vec) c(vec, i))
+    }
+    return(x)
+}
+
+# verify same results
+shortndls <- words[1:100]
+x_loop <- loop_grep(shortndls, txt)
+x_lapply <- lapply_grep(shortndls, txt)
+x_grepvec <- grepvec(shortndls, txt, matchrule = "last")
+all(unlist(x_loop) == unlist(x_lapply))
+
+# grepvec returns empty vec if no results, others return NULL. make equal
+x_grepvec <- lapply(x_grepvec, \(vec) if (length(vec) == 0) NULL else vec)
+all(unlist(x_lapply) == unlist(x_grepvec))
+
+microbenchmark(loop_grep(shortndls, txt),
+               lapply_grep(shortndls, txt),
+               grepvec(shortndls, txt, matchrule = "last"),
+               times = 10)
+```
