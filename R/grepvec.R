@@ -121,13 +121,14 @@ grepvec <- function(needles,
 #' Applying this function to a [grepvec] object is equivalent to calling
 #' [grepvec] with `out = "needles"`.
 #'
-#' @param obj `grepvec` object returned from [grepvec] when out = "object".
+#' @param x `grepvec` object returned from [grepvec] when out = "object".
 #' @param value A logical(0), default FALSE. If FALSE, then at each list index
 #'   is a vector containing the integer indices of matches in needles. If TRUE,
 #'   the actual matched patterns in needles are used instead.
 #' @param needles Character vector containing the needle patterns that were
 #'   searched for in haystacks by [grepvec].
 #'   By default, the needles used in the [grepvec] call are used.
+#' @param ... Additional arguments to be passed to methods.
 #' @return List of length(haystacks) of integer or character vectors.
 #'   Each list index corresponds to the haystack string at that index, and the
 #'   list elements are the indices or patterns from needles which matched to the
@@ -136,21 +137,21 @@ grepvec <- function(needles,
 #'   if no needle matches were found for the haystack.
 #'
 #' @export
-by_hay <- function(x, ...) {
+by_hay <- function(x, value = FALSE, ...) {
     UseMethod("by_hay")
 }
 
 #' @rdname by_hay
 #' @export
-by_hay.grepvec <- function(obj, value = FALSE, needles = obj$needles) {
+by_hay.grepvec <- function(x, value = FALSE, needles = x$needles, ...) {
     if (value) {
         # length is 0 if no needles matched this haystack
-        out <- lapply(obj$result, function(ixs) {
+        out <- lapply(x$result, function(ixs) {
             if (length(ixs) == 0) character(0) else needles[ixs]
         })
         return(out)
     }
-    return(obj$result)
+    return(x$result)
 }
 
 
@@ -161,7 +162,7 @@ by_hay.grepvec <- function(obj, value = FALSE, needles = obj$needles) {
 #' Applying this function to a `grepvec` object is equivalent to calling
 #' [grepvec] with `out = "haystacks"`.
 #
-#' @param obj `grepvec` object returned from [grepvec] when out = "object".
+#' @param x `grepvec` object returned from [grepvec] when out = "object".
 #' @param value A logical(0), default FALSE. If FALSE, then at each list index
 #'   is a vector containing the integer indices of the haystacks that matched to
 #'   the given needle. If TRUE, the actual matched haystack strings are used.
@@ -171,6 +172,7 @@ by_hay.grepvec <- function(obj, value = FALSE, needles = obj$needles) {
 #' @param n_ndl The length of the character vector containing the needle
 #'  patterns that were searched for in the haystacks by grepvec.
 #'  By default, the length of the needles used in the [grepvec] call are used.
+#' @param ... Additional arguments to be passed to methods.
 #' @return List of length(needles) of integer or character vectors. Each list
 #'   index corresponds to the needle pattern at that index, and the list
 #'   elements are the indices or actual strings from haystacks which matched to
@@ -178,20 +180,21 @@ by_hay.grepvec <- function(obj, value = FALSE, needles = obj$needles) {
 #'   The list element will be a vector of length 0 (integer(0) or character(0))
 #'   if no haystack matches were found for the needle.
 #' @export
-by_ndl <- function(x, ...) {
+by_ndl <- function(x, value = FALSE, ...) {
     UseMethod("by_ndl")
 }
 
 #' @rdname by_ndl
 #' @export
-by_ndl.grepvec <- function(obj,
+by_ndl.grepvec <- function(x,
                            value = FALSE,
-                           haystacks = obj$haystacks,
-                           n_ndl = length(obj$needles)) {
-    res <- obj$result
+                           haystacks = x$haystacks,
+                           n_ndl = length(x$needles),
+                           ...) {
+    res <- x$result
     # transpose list from by-haystacks to by-needle
     names(res) <- seq_along(res) # stack requires names
-    byndl <- with(stack(res), split(ind, values))
+    byndl <- with(utils::stack(res), split(ind, values))
     # expand list to be length of needles
     out <- lapply(as.character(seq(1, n_ndl)), \(ndl_ix) {
         ixs <- byndl[[ndl_ix]] # get haystack indices for given needle
@@ -233,7 +236,7 @@ print.grepvec <- function(x, n = 6, ...) {
         nshow <- n
     }
     cat(nshow,
-        if (nshow == 1) "result:\n\n" else "results:\n")
+        if (nshow == 1) "result:\n" else "results:\n")
     # cut to first n rows
     byhay <- byhay[1:nshow]
     # add haystacks as names
@@ -253,4 +256,5 @@ print.grepvec <- function(x, n = 6, ...) {
         cat("\n... out of ",
             format(nhay, big.mark = ",", scientific = FALSE),
             " haystacks.\n", sep = "")
+    return(invisible(x))
 }

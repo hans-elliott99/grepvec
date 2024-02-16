@@ -1,8 +1,8 @@
 /* grepvec.c
- * search vector of string with vector of sub-strings
+ * search a vector of strings for  vector of sub-strings or regex
  * Author: Hans Elliott
- * Date: 2023-11-07
- * License: MIT 2023 Hans Elliott
+ * Date: 2024-02-16
+ * License: MIT 2024 grepvec authors
  *
  *
  *
@@ -11,9 +11,9 @@
  *   needles - character(n_ndl) of sub-strings to search with
  *   matchrule - integer(1), 0 for all matches, 1 for first, 2 for last
  *   fixed - integer(1), if 1 look for exact sub-string match, else use regex
+ *   ignorecase - integer(1), if 1 ignore case when matching
  */
-
-#include <stdlib.h> //malloc,calloc
+#include <stdlib.h> //null
 #include <string.h> //memset
 #include <ctype.h>  //tolower
 #include <regex.h>  //regcomp,regexec,regfree
@@ -22,8 +22,11 @@
 
 char rgxmsg[100];
 
+//
 ////////// HELPERS //////////
-// Matchrule
+//
+
+// Match Rule
 enum {
     RETURNALL = 0,
     RETURNFIRST = 1,
@@ -31,6 +34,7 @@ enum {
 } matchrule_e;
 
 
+// set the first element of each match vector to that at the last idx
 void uselastmatch(SEXP matches, int Nh) {
     SEXP vec;
     int m;
@@ -46,7 +50,10 @@ void uselastmatch(SEXP matches, int Nh) {
 }
 
 
+//
 ////////// REGEX //////////
+//
+
 // test if regex matches string
 int matchregex(const char **str, regex_t *rgx) {
     int reti;
@@ -55,7 +62,7 @@ int matchregex(const char **str, regex_t *rgx) {
         return 1;
     if (reti != REG_NOMATCH) {
         regerror(reti, rgx, rgxmsg, sizeof(rgxmsg));
-        warning("Regex match failed: %s\n", rgxmsg);
+        warning("regex match failed: %s", rgxmsg);
     }
     return 0;
 }
@@ -83,13 +90,13 @@ SEXP grepvec_regex(SEXP haystck,
     */
     int regflags = REG_EXTENDED|REG_NOSUB;
     if (INTEGER(ignorecase)[0] == 1) regflags |= REG_ICASE;
-    rgxarr = malloc(sizeof(regex_t) * Nn);
-    skipidx = calloc(Nn, sizeof(int));
+    rgxarr  = (regex_t *)R_alloc(Nn, sizeof(regex_t));
+    skipidx = (int *)R_Calloc(Nn, int);
     for (j=0; j < Nn; j++) {
         const char *ndl = CHAR(STRING_ELT(needles, j));
         reti = regcomp(&rgxarr[j], ndl, regflags);
         if (reti != 0) {
-            warning("Could not compile regex for pattern: %s\n", ndl);
+            warning("could not compile regex for pattern: %s", ndl);
             skipidx[j] = 1;
         }
     }
@@ -125,8 +132,7 @@ SEXP grepvec_regex(SEXP haystck,
     for (j=0; j < Nn; j++) {
         if (skipidx[j] == 0) regfree(&rgxarr[j]);
     }
-    free(rgxarr);
-    free(skipidx);
+    R_Free(skipidx); // only R_Calloc needs to be freed
 
     if (mrule == RETURNLAST)
         uselastmatch(matches, Nh);
@@ -136,7 +142,9 @@ SEXP grepvec_regex(SEXP haystck,
 }
 
 
+//
 ////////// FIXED //////////
+//
 /*
 * case insensitive strstr
 * credit:

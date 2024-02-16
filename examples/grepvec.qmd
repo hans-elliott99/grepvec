@@ -103,7 +103,7 @@ match_vals <- lapply(by_hay(res, value = TRUE),
 ex <- data.frame(txt_col = txt_var,
                  n_matches = lengths(match_ixs),
                  first_match = unlist(lapply(match_vals, `[[`, 1)),
-                 matches = vapply(match_vals,
+                 all_matches = vapply(match_vals,
                                   paste,
                                   character(1L),
                                   collapse = ", "))
@@ -142,7 +142,7 @@ grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 
 # grep is similair but also errors out
 tryCatch(
-    grep(c("[bad", "(regex"), "those are bad regex patterns"),
+    grep("[bad", "those are bad regex patterns"),
     error = \(e) { cat("grep error message:\n"); conditionMessage(e) }
 )
 ```

@@ -5,16 +5,18 @@
 \alias{by_hay.grepvec}
 \title{For each haystack string, get the needle patterns that matched to it.}
 \usage{
-by_hay(x, ...)
+by_hay(x, value = FALSE, ...)
 
-\method{by_hay}{grepvec}(obj, value = FALSE, needles = obj$needles)
+\method{by_hay}{grepvec}(x, value = FALSE, needles = x$needles, ...)
 }
 \arguments{
-\item{obj}{\code{grepvec} object returned from \link{grepvec} when out = "object".}
+\item{x}{\code{grepvec} object returned from \link{grepvec} when out = "object".}
 
 \item{value}{A logical(0), default FALSE. If FALSE, then at each list index
 is a vector containing the integer indices of matches in needles. If TRUE,
 the actual matched patterns in needles are used instead.}
+
+\item{...}{Additional arguments to be passed to methods.}
 
 \item{needles}{Character vector containing the needle patterns that were
 searched for in haystacks by \link{grepvec}.

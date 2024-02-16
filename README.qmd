@@ -6,16 +6,30 @@ format:
 ---
 
 
-## Search for a vector of patterns in a vector of strings
+## Finding needles in haystacks
 
 Use `grepvec` to find needles in haystacks.  
 
 That is, search for each item in a vector of patterns (either regular expressions or fixed strings) across each item in a vector of strings.  
 R's native 'grep' functions search for a single pattern in a vector of strings. To search for many possible patterns across a string or vector of strings, some form of looping is required. `grepvec` implements this in C so that it is more efficient than native R solutions.
 
+
+## Install
+Since this package is not currently on CRAN, you can install it in R with `remotes::install_github("hans-elliott99/grepvec")`.  
+
+For development you can, clone the repo and use `devtools::load_all` or `devtools::install`.
+
+### Dependencies
+You have nothing else to install...
+
+I hope to keep `grepvec` lightweight, and there are no package dependencies other than the "base" R packages (`utils` and `base` specifically), so you don't need to install anything else.  
+
+For development, `testthat` is needed for unit testing, and I use `devtools` (and its dependencies) as well.
+
+
 ## Examples
 
-Please see vignettes/examples.md for more examples.
+Please see `examples/grepvec.md` for more examples.
 
 ```{r}
 library(grepvec)
@@ -41,27 +55,17 @@ grepvec(letters, paste(letters, collapse = ""), matchrule = "first", value = TRU
 grepvec(letters, paste(letters, collapse = ""), matchrule = "last", value = TRUE)
 
 x <- grepvec(letters[1:6], c("abc", "123"), out = "object")
-setNames(grepvec::by_hay(x, value = TRUE), c("abc", "123"))
-setNames(grepvec::by_ndl(x, value = TRUE), letters[1:6])
+setNames(grepvec::by_hay(x, value = TRUE), x$haystacks)
+setNames(grepvec::by_ndl(x, value = TRUE), x$needles)
 ```
 
 
-
-## Install
-Since this package is not currently on CRAN, you can install it in R with `remotes::install_github("hans-elliott99/grepvec")`.  
-
-For development you can, clone the repo and use `devtools::install`.
-
-### Dependencies
-
-There are no package dependencies, other than R's `base` package.  
-For development, only `devtools` and its dependencies are needed.
-
-
 ## Development
-This project is in development. I have used it in my own work for keyword-search related tasks, but it lacks testing by other users. If you find it useful please let me know, and let me know how I might improve it to better suit your needs. Thanks!
+I have used `grepvec` in my own work but it lacks testing by other users. If you find it useful please let me know, or let me know how I might improve it to better suit your needs.
 
+Feel free to contribute by creating issues or submitting pull requests.  
 
+Thanks!
 
 ## Use Cases
 

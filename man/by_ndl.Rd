@@ -5,21 +5,24 @@
 \alias{by_ndl.grepvec}
 \title{For each needle pattern, get the haystack strings where a match was found.}
 \usage{
-by_ndl(x, ...)
+by_ndl(x, value = FALSE, ...)
 
 \method{by_ndl}{grepvec}(
-  obj,
+  x,
   value = FALSE,
-  haystacks = obj$haystacks,
-  n_ndl = length(obj$needles)
+  haystacks = x$haystacks,
+  n_ndl = length(x$needles),
+  ...
 )
 }
 \arguments{
-\item{obj}{\code{grepvec} object returned from \link{grepvec} when out = "object".}
+\item{x}{\code{grepvec} object returned from \link{grepvec} when out = "object".}
 
 \item{value}{A logical(0), default FALSE. If FALSE, then at each list index
 is a vector containing the integer indices of the haystacks that matched to
 the given needle. If TRUE, the actual matched haystack strings are used.}
+
+\item{...}{Additional arguments to be passed to methods.}
 
 \item{haystacks}{Character vector containing the haystack strings that were
 searched over by grepvec. By default, the haystacks used in the \link{grepvec}

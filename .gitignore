@@ -1,4 +1,6 @@
 *.o
 *.so
+*.tar.gz
+*.Rcheck
 .vscode
 archive

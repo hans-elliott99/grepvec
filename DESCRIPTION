@@ -10,7 +10,7 @@ Description: Use 'grepvec' to search a vector of strings for matches in a vector
   a single pattern in a vector of strings. To search for many possible patterns
   across a string, some form of looping is required. 'grepvec' implements this
   in C so that it is faster than native R solutions.
-License: `use_mit_license()`
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3

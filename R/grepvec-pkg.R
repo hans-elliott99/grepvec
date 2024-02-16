@@ -13,8 +13,8 @@
 "_PACKAGE"
 
 
-# required packages? none
 
 ## usethis namespace: start
+#' @importFrom utils stack
 ## usethis namespace: end
 NULL

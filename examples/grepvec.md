@@ -283,7 +283,7 @@ match_vals <- lapply(by_hay(res, value = TRUE),
 ex <- data.frame(txt_col = txt_var,
                  n_matches = lengths(match_ixs),
                  first_match = unlist(lapply(match_vals, `[[`, 1)),
-                 matches = vapply(match_vals,
+                 all_matches = vapply(match_vals,
                                   paste,
                                   character(1L),
                                   collapse = ", "))
@@ -297,7 +297,7 @@ head(ex)
     4                                                    0        <NA>
     5                                          4         0        <NA>
     6  Unthrifty loveliness why dost thou spend,        18          do
-                                                                                                    matches
+                                                                                                all_matches
     1       thou?, be,, if, now?, no, thou?, be., live, of?, thou?, be,, red, he?, it?, ho?, red, live, in?
     2 thin, thee., then?, image, image, thin, so?, die, age, he?, with, and, it?, Die, ho?, it, in?, thine.
     3                                                                                                    NA
@@ -364,10 +364,10 @@ Invalid regex patterns:
 grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ```
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): Could
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
     not compile regex for pattern: [bad
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): Could
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
     not compile regex for pattern: (regex
 
     [[1]]
@@ -376,16 +376,13 @@ grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ``` r
 # grep is similair but also errors out
 tryCatch(
-    grep(c("[bad", "(regex"), "those are bad regex patterns"),
+    grep("[bad", "those are bad regex patterns"),
     error = \(e) { cat("grep error message:\n"); conditionMessage(e) }
 )
 ```
 
-    Warning in grep(c("[bad", "(regex"), "those are bad regex patterns"): argument
-    'pattern' has length > 1 and only the first element will be used
-
-    Warning in grep(c("[bad", "(regex"), "those are bad regex patterns"): TRE
-    pattern compilation error 'Missing ']''
+    Warning in grep("[bad", "those are bad regex patterns"): TRE pattern
+    compilation error 'Missing ']''
 
     grep error message:
 
@@ -411,7 +408,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 2.292767 mins
+    Time difference of 2.483955 mins
 
 ``` r
 # returning only the first match is faster
@@ -422,7 +419,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 11.40558 secs
+    Time difference of 12.03624 secs
 
 ``` r
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
@@ -457,7 +454,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 24.55358 secs
+    Time difference of 27.13047 secs
 
 ``` r
 # the only strings that matched to needle 1 should be those at 'banan_idx'
@@ -537,10 +534,10 @@ microbenchmark(loop_grep(shortndls, txt),
 
     Unit: seconds
                                             expr      min       lq     mean
-                       loop_grep(shortndls, txt) 5.008215 5.030304 5.087784
-                     lapply_grep(shortndls, txt) 5.029738 5.047121 5.091900
-     grepvec(shortndls, txt, matchrule = "last") 1.182151 1.192466 1.201898
+                       loop_grep(shortndls, txt) 5.015354 5.106655 5.193175
+                     lapply_grep(shortndls, txt) 5.116686 5.143838 5.200952
+     grepvec(shortndls, txt, matchrule = "last") 1.218099 1.223905 1.251596
        median       uq      max neval
-     5.057424 5.091927 5.384505    10
-     5.056514 5.080891 5.375384    10
-     1.198064 1.200106 1.253874    10
+     5.209785 5.267124 5.369964    10
+     5.210358 5.235419 5.302881    10
+     1.244400 1.263760 1.311056    10
