@@ -38,7 +38,7 @@ m <- grepvec(words, txt[1:500], matchrule = "all", out = "object", fixed = FALSE
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.1783898 secs
+    Time difference of 0.3245709 secs
 
 ``` r
 # try1: 8.95 secs
@@ -115,7 +115,7 @@ m <- grepvec(words, txt[1:500], matchrule = "all", out = "object")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.1933751 secs
+    Time difference of 0.1752975 secs
 
 ``` r
 # show indices of needle matches (default behavior)
@@ -431,7 +431,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 4.242218 mins
+    Time difference of 3.737695 mins
 
 ``` r
 # returning only the first match is faster
@@ -442,7 +442,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 49.80179 secs
+    Time difference of 40.58403 secs
 
 ``` r
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
@@ -477,7 +477,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 4.134299 secs
+    Time difference of 4.00403 secs
 
 ``` r
 # the only strings that matched to needle 1 should be those at 'banan_idx'
@@ -557,10 +557,10 @@ microbenchmark(loop_grep(shortndls, txt),
 
     Unit: seconds
                                             expr      min       lq     mean
-                       loop_grep(shortndls, txt) 6.223104 6.280492 6.650967
-                     lapply_grep(shortndls, txt) 6.160114 6.239869 6.637259
-     grepvec(shortndls, txt, matchrule = "last") 2.150144 2.169785 2.261649
+                       loop_grep(shortndls, txt) 6.213343 6.274915 6.532215
+                     lapply_grep(shortndls, txt) 6.170096 6.255969 6.750245
+     grepvec(shortndls, txt, matchrule = "last") 2.188003 2.239751 2.360895
        median       uq      max neval
-     6.523296 6.929130 7.251586    10
-     6.586978 6.924567 7.411134    10
-     2.193619 2.246433 2.678154    10
+     6.421365 6.819471 7.042459    10
+     6.650715 7.236296 8.046807    10
+     2.308900 2.416905 2.780170    10

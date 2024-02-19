@@ -19,3 +19,4 @@ Suggests:
 Config/testthat/edition: 3
 LinkingTo: 
     cpp11
+NeedsCompilation: yes

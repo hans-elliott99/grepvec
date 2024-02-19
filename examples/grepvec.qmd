@@ -50,9 +50,8 @@ difftime(Sys.time(), t0)
 ## C code but using boost::regex
 # try1: 0.63 seconds (hallelujiah)
 
-## & when fixed = TRUE:
-# 0.23 secs
-
+## C / C++ but using tre
+#try1:
 ```
 
 

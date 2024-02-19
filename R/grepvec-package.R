@@ -14,8 +14,8 @@
 
 
 
+#### ' @useDynLib grepvec, .registration = TRUE
 ## usethis namespace: start
-#' @useDynLib grepvec, .registration = TRUE
 #' @importFrom utils stack
 ## usethis namespace: end
 NULL

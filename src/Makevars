@@ -1,11 +1,27 @@
-PKG_LIBS = -lboost_regex
-PKG_CFLAGS = $(C_VISIBILITY) 
+# PKG_CFLAGS = $(C_VISIBILITY) ## note - won't work with this flag
 PKG_CXXFLAGS = $(CXX_VISIBILITY)
 
-SOURCES = cpp11.cpp grepvec.cpp
-OBJECTS = $(SOURCES:.cpp=.o)
 
+tre_obj = \
+	tre/regcomp.o \
+	tre/regerror.o \
+	tre/regexec.o  \
+	tre/tre-ast.o \
+	tre/tre-compile.o \
+	tre/tre-match-backtrack.o \
+	tre/tre-match-parallel.o \
+	tre/tre-mem.o \
+	tre/tre-parse.o \
+	tre/tre-stack.o \
+	tre/xmalloc.o
+
+
+# SOURCES = cpp11.cpp grepvec.cpp
+# OBJECTS = $(SOURCES:.cpp=.o) $(tre_obj)
+SOURCES = init.c grepvec.c
+OBJECTS = $(SOURCES:.c=.o) $(tre_obj)
 all: $(SHLIB)
+
 
 .PHONY: clean
 clean:
