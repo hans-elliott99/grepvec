@@ -68,8 +68,6 @@
 #' head(by_hay(x, value = TRUE))
 #' head(by_ndl(x, value = TRUE))
 #'
-#' @useDynLib grepvec, grepvec_regex, grepvec_fixed
-#'
 #' @export
 grepvec <- function(needles,
                     haystacks,
@@ -88,13 +86,12 @@ grepvec <- function(needles,
     if (is.na(ignore_case)) stop("Argument 'ignore_case' must be logical.")
     out <- match.arg(out)
     matchrule_ix <- switch(matchrule, all = 0L, first = 1L, last = 2L)
-    # grepvec (haystacks, needles, matchrule, ignore_case)
-    if (fixed)
-        x <- .Call("grepvec_fixed", haystacks, needles,
-                   matchrule_ix, as.integer(ignore_case))
-    else
-        x <- .Call("grepvec_regex", haystacks, needles,
-                   matchrule_ix, as.integer(ignore_case))
+    # grepvec (strings ndl, strings hay, integer m, bool i)
+    if (fixed) {
+        x <- grepvec_fixed_(needles, haystacks, matchrule_ix, ignore_case)
+    } else {
+        x <- grepvec_regex_(needles, haystacks, matchrule_ix, ignore_case)
+    }
     # determine output format
     if (out == "needles" && value == FALSE)
         return(x)

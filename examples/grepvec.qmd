@@ -32,6 +32,27 @@ gen_word_list <- function(lines, n = 10) {
     return(words)
 }
 
+words <- gen_word_list(txt, n = 2000)
+
+t0 = Sys.time()
+m <- grepvec(words, txt[1:500], matchrule = "all", out = "object", fixed = FALSE)
+difftime(Sys.time(), t0)
+
+# try1: 8.95 secs
+# try2: 8.43 secs (very few changes)
+# try3: 8.12 secs (use C API for vectors)
+
+## back to C code
+# try1: 0.35 secs
+# try2: 7.5 secs (use std::vector to store regexes instead of C dynamic array)
+# okay, seems like the really slow bit is the std::regex lib
+
+## C code but using boost::regex
+# try1: 0.63 seconds (hallelujiah)
+
+## & when fixed = TRUE:
+# 0.23 secs
+
 ```
 
 
@@ -58,7 +79,10 @@ By default `grepvec` returns a list of the needle indexes matching to each hayst
 
 ```{r}
 words <- gen_word_list(txt, n = 2000)
-m <- grepvec(words, txt[1:1000], matchrule = "all", out = "object")
+t0 = Sys.time()
+m <- grepvec(words, txt[1:500], matchrule = "all", out = "object")
+difftime(Sys.time(), t0)
+
 # show indices of needle matches (default behavior)
 head(by_hay(m))
 # convert indices to the corresponding strings
@@ -150,7 +174,7 @@ tryCatch(
 
 ## Speed
 
-```{r}
+```{r big-hay-vec}
 # test grepvec on some bigger vectors
 hay <- c(txt, txt, txt, txt)
 ndl <- words
@@ -172,7 +196,7 @@ difftime(Sys.time(), t0)
 ```
 
 
-```{r}
+```{r long-ndls}
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
 # PROTECTion stack overflow if list elemements are not unprotected as soon as
 # added to list (in grepvec.c)
@@ -190,7 +214,7 @@ cat("N Hay =", format(length(somehay), big.mark = ","),
     "| N Needle =", format(length(longndls), big.mark = ","), "\n")
 t0 <- Sys.time()
 suppressWarnings({
-    x <- grepvec(longndls, somehay, matchrule = "first", out = "obj")
+    x <- grepvec(longndls, somehay, matchrule = "first", out = "obj", fixed = TRUE)
 })
 difftime(Sys.time(), t0)
 
@@ -205,7 +229,7 @@ unique(by_hay(x, value = TRUE)[which(flatten(xix) == 1)])
 
 Suggestions wanted.
 
-```{r}
+```{r base-r-cmp}
 #
 # implement as if matchrule = last, and use try because grep errors if bad regex
 #

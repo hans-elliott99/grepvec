@@ -29,7 +29,8 @@ For development you can, clone the repo and use `devtools::load_all` or
 
 ### Dependencies
 
-You have nothing else to install…
+https://robots.uc3m.es/installation-guides/install-boost.html
+
 
 I hope to keep `grepvec` lightweight, and there are no package
 dependencies other than the “base” R packages (`utils` and `base`
