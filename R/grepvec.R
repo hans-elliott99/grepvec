@@ -1,6 +1,3 @@
-# TODO: specify flags for passing to regcomp?
-
-
 #' grepvec: Search a vector of strings for matches in a vector of patterns.
 #'
 #' grepvec searches for needles in haystacks. Needles are one or more
@@ -68,7 +65,7 @@
 #' head(by_hay(x, value = TRUE))
 #' head(by_ndl(x, value = TRUE))
 #'
-#' @useDynLib grepvec grepvec_regex grepvec_fixed
+#' @useDynLib grepvec, grepvec_regex_, grepvec_fixed_
 #'
 #' @export
 grepvec <- function(needles,
@@ -86,17 +83,18 @@ grepvec <- function(needles,
     if (is.na(fixed)) stop("Argument 'fixed' must be logical.")
     ignore_case <- as.logical(ignore_case)
     if (is.na(ignore_case)) stop("Argument 'ignore_case' must be logical.")
+    if (fixed && ignore_case)
+        warning("Argument 'ignore_case' is ignored when 'fixed' is TRUE.")
     out <- match.arg(out)
     matchrule_ix <- switch(matchrule, all = 0L, first = 1L, last = 2L)
     # grepvec (strings ndl, strings hay, integer m, bool i)
+    on.exit(.Call("on_exit_grepvec_"))
     if (fixed) {
-        x <- .Call("grepvec_fixed", needles, haystacks, matchrule_ix,
+        x <- .Call("grepvec_fixed_", needles, haystacks, matchrule_ix,
                    ignore_case)
-        # x <- grepvec_fixed_(needles, haystacks, matchrule_ix, ignore_case)
     } else {
-        x <- .Call("grepvec_regex", needles, haystacks, matchrule_ix,
+        x <- .Call("grepvec_regex_", needles, haystacks, matchrule_ix,
                    ignore_case)
-        # x <- grepvec_regex_(needles, haystacks, matchrule_ix, ignore_case)
     }
     # determine output format
     if (out == "needles" && value == FALSE)
@@ -114,7 +112,6 @@ grepvec <- function(needles,
         return(by_ndl(obj, value = value))
     return(obj)
 }
-
 
 
 #' For each haystack string, get the needle patterns that matched to it.

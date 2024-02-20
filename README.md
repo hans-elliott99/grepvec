@@ -5,6 +5,11 @@
 - [Install](#install)
   - [Dependencies](#dependencies)
 - [Examples](#examples)
+- [Similarities and differences from
+  `grep`](#similarities-and-differences-from-grep)
+  - [PERL](#perl)
+  - [Missing values](#missing-values)
+  - [UTF-8 everywhere](#utf-8-everywhere)
 - [Development](#development)
 - [Use Cases](#use-cases)
 
@@ -29,8 +34,7 @@ For development you can, clone the repo and use `devtools::load_all` or
 
 ### Dependencies
 
-https://robots.uc3m.es/installation-guides/install-boost.html
-
+You have nothing else to install…
 
 I hope to keep `grepvec` lightweight, and there are no package
 dependencies other than the “base” R packages (`utils` and `base`
@@ -153,6 +157,105 @@ setNames(grepvec::by_ndl(x, value = TRUE), x$needles)
 
     $f
     character(0)
+
+## Similarities and differences from `grep`
+
+The idea is to make the behavior of `grepvec` similair to that of
+`base::grep` (with the most obvious difference being that `grepvec`
+returns a list).
+
+### PERL
+
+For example, `grepvec` uses the same regex library
+([tre](https://github.com/laurikari/tre)) used by R when you call
+`grep(..., perl = FALSE)`, the default case.  
+I may add perl-compatible regular expressions through the PCRE library,
+but currently there is no `perl` option in `grepvec`.
+
+### Missing values
+
+Another difference is in the propagation of missing values.  
+With `grep`, if the pattern is `NA` the result is a vector, length(x),
+of `NA`.  
+However, if the hasytack (“x” in `grep`) is `NA`, the NAs are ignored:
+
+``` r
+grep(NA, letters)
+```
+
+     [1] NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA
+    [26] NA
+
+``` r
+grep("a", NA)
+```
+
+    integer(0)
+
+``` r
+grep("a", c(NA, "apple"))
+```
+
+    [1] 2
+
+`grepvec` never returns `NA`:
+
+``` r
+grepvec(NA, letters[1:2])
+```
+
+    [[1]]
+    integer(0)
+
+    [[2]]
+    integer(0)
+
+``` r
+grepvec(c("a", "b"), c(NA, "apple"))
+```
+
+    [[1]]
+    integer(0)
+
+    [[2]]
+    [1] 1
+
+Since `grepvec` is meant to be used to check for *many* patterns in
+*many* strings, if a needle is `NA`, it is treated as a pattern that
+could never match any string. Likewise, if a haystack is `NA`, it is
+treated as a string where no needles can be found. Instead of returning
+`NA`, a vector of length 0 is returned.
+
+Ideally, this makes the results easier to work with. For example, it is
+easier to compare the number of matches across haystacks, since `NA`
+values would be considered in the length of the vector:
+
+``` r
+lengths(grepvec(NA, letters[1:2]))
+```
+
+    [1] 0 0
+
+``` r
+lengths(grep(NA, letters[1:2]))
+```
+
+    [1] 1 1
+
+``` r
+# NAs contribute to length 
+length(c(NA, NA, 3))
+```
+
+    [1] 3
+
+### UTF-8 everywhere
+
+When strings are compared by `grepvec`, they are first converted to
+UTF-8 (if needed).
+
+Inspired by the [R package
+cpp11.](https://cran.r-project.org/web/packages/cpp11/vignettes/motivations.html#utf-8-everywhere)
 
 ## Development
 

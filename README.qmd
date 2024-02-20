@@ -60,6 +60,55 @@ setNames(grepvec::by_ndl(x, value = TRUE), x$needles)
 ```
 
 
+## Similarities and differences from `grep`
+
+The idea is to make the behavior of `grepvec` similair to that of `base::grep` (with the most obvious difference being that `grepvec` returns a list).  
+
+### PERL
+
+For example, `grepvec` uses the same regex library ([tre](https://github.com/laurikari/tre)) used by R when you call `grep(..., perl = FALSE)`, the default case.  
+I may add perl-compatible regular expressions through the PCRE library, but currently there is no `perl` option in `grepvec`.
+
+
+### Missing values
+
+Another difference is in the propagation of missing values.  
+With `grep`, if the pattern is `NA` the result is a vector, length(x), of `NA`.  
+However, if the hasytack ("x" in `grep`) is `NA`, the NAs are ignored:  
+```{r}
+grep(NA, letters)
+grep("a", NA)
+grep("a", c(NA, "apple"))
+```
+
+`grepvec` never returns `NA`:
+
+```{r}
+grepvec(NA, letters[1:2])
+grepvec(c("a", "b"), c(NA, "apple"))
+```
+
+Since `grepvec` is meant to be used to check for *many* patterns in *many* strings, if a needle is `NA`, it is treated as a pattern that could never match any string. Likewise, if a haystack is `NA`, it is treated as a string where no needles can be found. Instead of returning `NA`, a vector of length 0 is returned.  
+
+
+Ideally, this makes the results easier to work with. For example, it is easier to compare the number of matches across haystacks, since `NA` values would be considered in the length of the vector:  
+
+```{r}
+lengths(grepvec(NA, letters[1:2]))
+lengths(grep(NA, letters[1:2]))
+
+# NAs contribute to length 
+length(c(NA, NA, 3))
+```
+
+
+### UTF-8 everywhere
+
+When strings are compared by `grepvec`, they are first converted to UTF-8 (if needed).  
+
+Inspired by the [R package cpp11.](https://cran.r-project.org/web/packages/cpp11/vignettes/motivations.html#utf-8-everywhere)
+
+
 ## Development
 I have used `grepvec` in my own work but it lacks testing by other users. If you find it useful please let me know, or let me know how I might improve it to better suit your needs.
 

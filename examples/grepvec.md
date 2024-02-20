@@ -15,8 +15,7 @@ set.seed(1614)
 #
 # create some data
 #
-shakespeare_url <- "https://ocw.mit.edu/ans7870/6/6.006/s08/lecturenotes/files/t8.shakespeare.txt"
-txt <- trimws(readLines(shakespeare_url))
+txt <- readRDS("../inst/extdata/shakespeare.rds")
 
 #
 # get some random words from the txt to use as patterns
@@ -30,31 +29,6 @@ gen_word_list <- function(lines, n = 10) {
     words <- gsub("\\[|\\]|\\(|\\)", "", words)
     return(words)
 }
-
-words <- gen_word_list(txt, n = 2000)
-
-t0 = Sys.time()
-m <- grepvec(words, txt[1:500], matchrule = "all", out = "object", fixed = FALSE)
-difftime(Sys.time(), t0)
-```
-
-    Time difference of 0.3245709 secs
-
-``` r
-# try1: 8.95 secs
-# try2: 8.43 secs (very few changes)
-# try3: 8.12 secs (use C API for vectors)
-
-## back to C code
-# try1: 0.35 secs
-# try2: 7.5 secs (use std::vector to store regexes instead of C dynamic array)
-# okay, seems like the really slow bit is the std::regex lib
-
-## C code but using boost::regex
-# try1: 0.63 seconds (hallelujiah)
-
-## & when fixed = TRUE:
-# 0.23 secs
 ```
 
 ## Examples
@@ -115,7 +89,7 @@ m <- grepvec(words, txt[1:500], matchrule = "all", out = "object")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.1752975 secs
+    Time difference of 0.211786 secs
 
 ``` r
 # show indices of needle matches (default behavior)
@@ -123,23 +97,24 @@ head(by_hay(m))
 ```
 
     [[1]]
-     [1]  391  774  813 1131 1346 1524 1554 1681 1780 1812
+     [1]   71  214  321  454  593 1237 1547 1742 1809 1840 1938
 
     [[2]]
-     [1]  391  574  675  813 1131 1346 1388 1554 1662 1681 1739 1777 1812 1987
+     [1]   71  124  185  214  215  250  481  593  690  791  968 1046 1217 1237 1249
+    [16] 1276 1629 1742 1840 1938 1980
 
     [[3]]
-     [1]  302  391  774  813 1131 1346 1524 1536 1554 1681 1812
+    [1]   71  214 1237 1547 1572 1742 1809 1840 1938
 
     [[4]]
-     [1]   74  120  302  369  391  471  813 1043 1131 1346 1439 1536 1554 1585 1662
-    [16] 1681 1791 1812 1885 1987
+     [1]   53   71  124  170  214  250  297  481  690  968 1152 1200 1221 1237 1243
+    [16] 1351 1438 1742 1757 1776 1840 1938
 
     [[5]]
     integer(0)
 
     [[6]]
-    [1]  302 1131 1346 1681
+    [1]  214 1572
 
 ``` r
 # convert indices to the corresponding strings
@@ -147,50 +122,54 @@ head(setNames(by_hay(m, value = TRUE), m$haystacks))
 ```
 
     $`This is the 100th Etext file presented by Project Gutenberg, and`
-     [1] "then?" "be."   "of?"   "so?"   "he?"   "and"   "it?"   "ho?"   "This" 
-    [10] "in?"  
+     [1] "he."      "so?"      "by"       "by."      "present." "the"     
+     [7] "and"      "on?"      "go?"      "the"      "the"     
 
     $`is presented in cooperation with World Library, Inc., from their`
-     [1] "then?" "on."   "on"    "of?"   "so?"   "he?"   "with"  "it?"   "at."  
-    [10] "ho?"   "it"    "heir"  "in?"   "at"   
+     [1] "he."      "at"       "on."      "so?"      "from"     "at"      
+     [7] "at."      "present." "in"       "ope"      "in"       "ope"     
+    [13] "with"     "the"      "on."      "on."      "or"       "on?"     
+    [19] "the"      "the"      "with"    
 
     $`Library of the Future and Shakespeare CDROMS.  Project Gutenberg`
-     [1] "are"   "then?" "be."   "of?"   "so?"   "he?"   "and"   "of"    "it?"  
-    [10] "ho?"   "in?"  
+    [1] "he." "so?" "the" "and" "ear" "on?" "go?" "the" "the"
 
     $`often releases Etexts that are NOT placed in the Public Domain!!`
-     [1] "in!"   "place" "are"   "ease"  "then?" "that?" "of?"   "oft"   "so?"  
-    [10] "he?"   "as"    "of"    "it?"   "that." "at."   "ho?"   "that." "in?"  
-    [19] "oft"   "at"   
+     [1] "that?"    "he."      "at"       "Do"       "so?"      "at"      
+     [7] "place."   "at."      "in"       "in"       "main"     "Domain!!"
+    [13] "place."   "the"      "place"    "often"    "often"    "on?"     
+    [19] "releases" "Do"       "the"      "the"     
 
     [[5]]
     character(0)
 
     $Shakespeare
-    [1] "are" "so?" "he?" "ho?"
+    [1] "so?" "ear"
 
 ``` r
 # transpose so we can see the haystacks that matched to each needle
 head(setNames(by_ndl(m, value = TRUE), m$needles))
 ```
 
-    $Joan
+    $dotards.
     character(0)
 
-    $`bear-baitings.`
+    $makes
     character(0)
 
-    $Fal.
+    $`Got,`
     character(0)
 
-    $opening
+    $`earth,`
     character(0)
 
-    $PINCH.
-    character(0)
+    $serve
+    [1] "(Internet, Bitnet, Compuserve, ATTMAIL or MCImail)."      
+    [2] "Internet (72600.2026@compuserve.com); TEL: (212-254-5093)"
+    [3] "How much more praise deserved thy beauty's use,"          
 
-    $`morrow,`
-    character(0)
+    $ox
+    [1] "P. O. Box  2782" "P.O. Box 2782"  
 
 ``` r
 # print object
@@ -204,28 +183,29 @@ print(m)
     First 6 results:
 
     "This is the 100th Etext file presented by Project Gutenberg, and"
-     [1]  391  774  813 1131 1346 1524 1554 1681 1780 1812
-    (10 matches)
-
-    "is presented in cooperation with World Library, Inc., from their"
-     [1]  391  574  675  813 1131 1346 1388 1554 1662 1681 1739 1777 1812 1987
-    (14 matches)
-
-    "Library of the Future and Shakespeare CDROMS.  Project Gutenberg"
-     [1]  302  391  774  813 1131 1346 1524 1536 1554 1681 1812
+     [1]   71  214  321  454  593 1237 1547 1742 1809 1840 1938
     (11 matches)
 
+    "is presented in cooperation with World Library, Inc., from their"
+     [1]   71  124  185  214  215  250  481  593  690  791  968 1046 1217 1237 1249
+    [16] 1276 1629 1742 1840 1938 1980
+    (21 matches)
+
+    "Library of the Future and Shakespeare CDROMS.  Project Gutenberg"
+    [1]   71  214 1237 1547 1572 1742 1809 1840 1938
+    (9 matches)
+
     "often releases Etexts that are NOT placed in the Public Domain!!"
-     [1]   74  120  302  369  391  471  813 1043 1131 1346 1439 1536 1554 1585 1662
-    [16] 1681 1791 1812 1885 1987
-    (20 matches)
+     [1]   53   71  124  170  214  250  297  481  690  968 1152 1200 1221 1237 1243
+    [16] 1351 1438 1742 1757 1776 1840 1938
+    (22 matches)
 
     ""
     integer(0)
 
     "Shakespeare"
-    [1]  302 1131 1346 1681
-    (4 matches)
+    [1]  214 1572
+    (2 matches)
 
     ... out of 500 haystacks.
 
@@ -252,12 +232,12 @@ head(ex)
 ```
 
                                          txt_col n_match_rgx n_match_fxd
-    1     But if thou live remembered not to be,           4           1
-    2 Die single and thine image dies with thee.          13           4
+    1     But if thou live remembered not to be,          18           8
+    2 Die single and thine image dies with thee.          18          11
     3                                                      0           0
     4                                                      0           0
     5                                          4           0           0
-    6  Unthrifty loveliness why dost thou spend,           6           3
+    6  Unthrifty loveliness why dost thou spend,          18           6
 
 Returning the grepvec object may be useful if you have a few operations
 to perform:
@@ -274,12 +254,14 @@ txt_var <- txt[300:500]
     First 6 results:
 
     "But if thou live remembered not to be,"
-    [1]  232  583 1329 1477
-    (4 matches)
+     [1]  127  512  535  566  583  729  774  810  813 1074 1099 1305 1346 1554 1681
+    [16] 1693 1792 1812
+    (18 matches)
 
     "Die single and thine image dies with thee."
-     [1]  523  704  806  833 1233 1329 1497 1513 1515 1587 1626 1742 1809
-    (13 matches)
+     [1]  139  194  391  644  720  944 1131 1198 1235 1346 1388 1524 1554 1663 1681
+    [16] 1739 1812 1923
+    (18 matches)
 
     ""
     integer(0)
@@ -291,8 +273,9 @@ txt_var <- txt[300:500]
     integer(0)
 
     "Unthrifty loveliness why dost thou spend,"
-    [1]  439  474  760 1329 1652 1742
-    (6 matches)
+     [1]   19  127  225  287  441  535  577  726  729  813  919 1074 1131 1159 1346
+    [16] 1554 1681 1812
+    (18 matches)
 
     ... out of 201 haystacks.
 
@@ -313,19 +296,19 @@ head(ex)
 ```
 
                                          txt_col n_matches first_match
-    1     But if thou live remembered not to be,         4         not
-    2 Die single and thine image dies with thee.        13        him?
+    1     But if thou live remembered not to be,        18       thou?
+    2 Die single and thine image dies with thee.        18        thin
     3                                                    0        <NA>
     4                                                    0        <NA>
     5                                          4         0        <NA>
-    6  Unthrifty loveliness why dost thou spend,         6         why
-                                                              all_matches
-    1                                                not, not., he?, not.
-    2 him?, an., then?, a, it, he?, die., them?, mad?, it., age, in, mad?
-    3                                                                  NA
-    4                                                                  NA
-    5                                                                  NA
-    6                                    why, spend?, love., he?, why, in
+    6  Unthrifty loveliness why dost thou spend,        18          do
+                                                                                                all_matches
+    1       thou?, be,, if, now?, no, thou?, be., live, of?, thou?, be,, red, he?, it?, ho?, red, live, in?
+    2 thin, thee., then?, image, image, thin, so?, die, age, he?, with, and, it?, Die, ho?, it, in?, thine.
+    3                                                                                                    NA
+    4                                                                                                    NA
+    5                                                                                                    NA
+    6  do, thou?, love?, end, do, if, love., spend, thou?, of?, love?, thou?, so?, dost, he?, it?, ho?, in?
 
 Be careful when unlisting the results, because if no match was found a 0
 length vector is returned.
@@ -336,10 +319,10 @@ head(res)
 ```
 
     [[1]]
-    [1] 232
+    [1] 127
 
     [[2]]
-    [1] 523
+    [1] 139
 
     [[3]]
     integer(0)
@@ -351,7 +334,7 @@ head(res)
     integer(0)
 
     [[6]]
-    [1] 439
+    [1] 19
 
 ``` r
 length(res)
@@ -386,12 +369,11 @@ Invalid regex patterns:
 grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ```
 
-    Warning: error compiling regex '[bad': Unmatched [ or [^ in character class
-    declaration.  The error occurred while parsing the regular expression:
-    '[bad>>>HERE>>>'.
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
+    not compile regex for pattern: [bad
 
-    Warning: error compiling regex '(regex': Unmatched marking parenthesis ( or \(.
-    The error occurred while parsing the regular expression: '(regex>>>HERE>>>'.
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
+    not compile regex for pattern: (regex
 
     [[1]]
     integer(0)
@@ -415,13 +397,13 @@ tryCatch(
 
 ``` r
 # test grepvec on some bigger vectors
-hay <- c(txt, txt, txt, txt)
+hay <- c(txt, txt)
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")
 ```
 
-    N Hay = 497,824 | N Needle = 2,000 
+    N Hay = 248,912 | N Needle = 2,000 
 
 ``` r
 t0 <- Sys.time()
@@ -431,7 +413,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 3.737695 mins
+    Time difference of 1.833018 mins
 
 ``` r
 # returning only the first match is faster
@@ -442,7 +424,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 40.58403 secs
+    Time difference of 8.785844 secs
 
 ``` r
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
@@ -472,12 +454,12 @@ cat("N Hay =", format(length(somehay), big.mark = ","),
 ``` r
 t0 <- Sys.time()
 suppressWarnings({
-    x <- grepvec(longndls, somehay, matchrule = "first", out = "obj", fixed = TRUE)
+    x <- grepvec(longndls, somehay, matchrule = "first", out = "obj", fixed = FALSE)
 })
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 4.00403 secs
+    Time difference of 24.86895 secs
 
 ``` r
 # the only strings that matched to needle 1 should be those at 'banan_idx'
@@ -530,6 +512,7 @@ lapply_grep <- function(needles, haystacks) {
     return(x)
 }
 
+
 # verify same results
 shortndls <- words[1:100]
 x_loop <- loop_grep(shortndls, txt)
@@ -557,10 +540,10 @@ microbenchmark(loop_grep(shortndls, txt),
 
     Unit: seconds
                                             expr      min       lq     mean
-                       loop_grep(shortndls, txt) 6.213343 6.274915 6.532215
-                     lapply_grep(shortndls, txt) 6.170096 6.255969 6.750245
-     grepvec(shortndls, txt, matchrule = "last") 2.188003 2.239751 2.360895
+                       loop_grep(shortndls, txt) 6.322112 6.371980 6.634592
+                     lapply_grep(shortndls, txt) 6.256943 6.271585 6.440395
+     grepvec(shortndls, txt, matchrule = "last") 2.713864 2.757666 2.776852
        median       uq      max neval
-     6.421365 6.819471 7.042459    10
-     6.650715 7.236296 8.046807    10
-     2.308900 2.416905 2.780170    10
+     6.491400 6.622775 7.718869    10
+     6.301391 6.507926 6.954658    10
+     2.768336 2.805932 2.833863    10

@@ -1,6 +1,3 @@
-# PKG_CFLAGS = $(C_VISIBILITY) ## note - won't work with this flag
-PKG_CXXFLAGS = $(CXX_VISIBILITY)
-
 
 tre_obj = \
 	tre/regcomp.o \
@@ -16,8 +13,6 @@ tre_obj = \
 	tre/xmalloc.o
 
 
-# SOURCES = cpp11.cpp grepvec.cpp
-# OBJECTS = $(SOURCES:.cpp=.o) $(tre_obj)
 SOURCES = init.c grepvec.c
 OBJECTS = $(SOURCES:.c=.o) $(tre_obj)
 all: $(SHLIB)
