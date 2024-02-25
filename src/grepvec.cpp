@@ -15,11 +15,20 @@
  */
 #include <stdlib.h> //null
 #include <string.h> //memset
+
+#include <cpp11.hpp>
+
 #include <R.h>
 #include <Rinternals.h>
 #include <R_ext/Utils.h>
 
-#include "tre/tre.h" // tre_regcomp, tre_regexec, tre_regfree, tre_regerror
+#include <regex.h>
+
+#define tre_regcomp regcomp
+#define tre_regexec regexec
+#define tre_regfree regfree
+#define tre_regerror regerror
+
 
 enum MatchRule {
     RETURNALL   = 0,
@@ -52,6 +61,7 @@ struct FixedCache {
 void free_regex_cache(struct RegexCache *cache);
 void free_fixed_cache(struct FixedCache *cache);
 
+[[cpp11::register]]
 SEXP on_exit_grepvec_(void) {
     free_regex_cache(&rgx_cache);
     free_fixed_cache(&fixed_cache);
@@ -99,7 +109,7 @@ int check_regex_cache(SEXP *ndl, struct RegexCache *cache, int idx) {
     int reti = tre_regcomp(&cache->rgxarr[idx], ndl_str, cache->flags);
     vmaxset(vmax); // rm space allocated for ndl_str
     if (reti != 0) {
-        warning("could not compile regex for pattern: %s", ndl_str);
+        cpp11::warning("could not compile regex for pattern: %s", ndl_str);
         cache->seen[idx] = -1;
         return 0;
     }
@@ -116,24 +126,25 @@ int matchregex(const char **str, regex_t *rgx) {
         return 1;
     if (reti != REG_NOMATCH) {
         tre_regerror(reti, rgx, rgxmsg, sizeof(rgxmsg));
-        warning("regex match failed: %s", rgxmsg);
+        cpp11::warning("regex match failed: %s", rgxmsg);
     }
     return 0;
 }
 
 
+[[cpp11::register]]
 SEXP grepvec_regex_(SEXP needles,
                     SEXP haystck,
                     SEXP matchrule,
                     SEXP ignorecase) {
-    int Nh = length(haystck);
-    int Nn = length(needles);
+    int Nh = LENGTH(haystck);
+    int Nn = LENGTH(needles);
     int mrule = INTEGER(matchrule)[0];
     // inital length of match vector for each hay
     int Nm = (mrule != RETURNALL) ? 1 : Nn;
 
     // result vector - list of integer vectors
-    SEXP matches = PROTECT(allocVector(VECSXP, Nh));
+    SEXP matches = PROTECT(Rf_allocVector(VECSXP, Nh));
 
     int i, j, nmatch, anymatch;
     init_regex_cache(&rgx_cache, Nn, Rf_asLogical(ignorecase));
@@ -144,12 +155,12 @@ SEXP grepvec_regex_(SEXP needles,
     for (i=0; i < Nh; i++) {
         R_CheckUserInterrupt();
         if (STRING_ELT(haystck, i) == NA_STRING) {
-            SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
+            SET_VECTOR_ELT(matches, i, Rf_allocVector(INTSXP, 0));
             continue;
         }
         vmax_outer = vmaxget();
         const char *hay = Rf_translateCharUTF8(STRING_ELT(haystck, i));
-        SEXP mtchs_i = PROTECT(allocVector(INTSXP, Nm));
+        SEXP mtchs_i = PROTECT(Rf_allocVector(INTSXP, Nm));
         memset(INTEGER(mtchs_i), 0, Nm * sizeof(int));
 
         nmatch = 0;   // num matches for string i
@@ -157,7 +168,7 @@ SEXP grepvec_regex_(SEXP needles,
         for (j=0; j < Nn; j++) {
             SEXP ndl = STRING_ELT(needles, j);
             if (ndl == NA_STRING) {
-                SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
+                SET_VECTOR_ELT(matches, i, Rf_allocVector(INTSXP, 0));
                 continue;
             }
             if (check_regex_cache(&ndl, &rgx_cache, j)) {
@@ -209,18 +220,19 @@ void update_fixed_cache(SEXP *ndl, struct FixedCache *cache, int idx) {
     cache->ndlarr[idx] = Rf_translateCharUTF8(*ndl);
 }
 
+[[cpp11::register]]
 SEXP grepvec_fixed_(SEXP needles,
                     SEXP haystck,
                     SEXP matchrule,
                     SEXP ignorecase) {
-    int Nh = length(haystck);
-    int Nn = length(needles);
+    int Nh = LENGTH(haystck);
+    int Nn = LENGTH(needles);
     int mrule = INTEGER(matchrule)[0];
     // inital length of match vector for each hay
     int Nm = (mrule != RETURNALL) ? 1 : Nn;
 
     // result vector - list of integer vectors
-    SEXP matches = PROTECT(allocVector(VECSXP, Nh));
+    SEXP matches = PROTECT(Rf_allocVector(VECSXP, Nh));
     int i, j, nmatch;
     int anymatch;
     init_fixed_cache(&fixed_cache, Nn);
@@ -230,11 +242,11 @@ SEXP grepvec_fixed_(SEXP needles,
     for (i=0; i < Nh; i++) {
         R_CheckUserInterrupt();
         if (STRING_ELT(haystck, i) == NA_STRING) {
-            SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
+            SET_VECTOR_ELT(matches, i, Rf_allocVector(INTSXP, 0));
             continue;
         }
         const char *hay = Rf_translateCharUTF8(STRING_ELT(haystck, i));
-        SEXP mtchs_i = PROTECT(allocVector(INTSXP, Nm));
+        SEXP mtchs_i = PROTECT(Rf_allocVector(INTSXP, Nm));
         memset(INTEGER(mtchs_i), 0, Nm * sizeof(int));
 
         nmatch = 0;   // num matches for string i
@@ -242,7 +254,7 @@ SEXP grepvec_fixed_(SEXP needles,
         for (j=0; j < Nn; j++) {
             SEXP ndl = STRING_ELT(needles, j);
             if (ndl == NA_STRING) {
-                SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
+                SET_VECTOR_ELT(matches, i, Rf_allocVector(INTSXP, 0));
                 continue;
             }
             update_fixed_cache(&ndl, &fixed_cache, j);

@@ -6,6 +6,8 @@
 - [Compare grepvec with native R
   solutions](#compare-grepvec-with-native-r-solutions)
 
+Compiled using regex.h and cpp11
+
 ``` r
 # make sure you installed via remotes::install_github or devtools
 library(grepvec)
@@ -89,7 +91,7 @@ m <- grepvec(words, txt[1:500], matchrule = "all", out = "object")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.211786 secs
+    Time difference of 0.2102449 secs
 
 ``` r
 # show indices of needle matches (default behavior)
@@ -369,11 +371,9 @@ Invalid regex patterns:
 grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ```
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
-    not compile regex for pattern: [bad
+    Warning: could not compile regex for pattern: [bad
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
-    not compile regex for pattern: (regex
+    Warning: could not compile regex for pattern: (regex
 
     [[1]]
     integer(0)
@@ -397,13 +397,13 @@ tryCatch(
 
 ``` r
 # test grepvec on some bigger vectors
-hay <- c(txt, txt)
+hay <- c(txt, txt, txt, txt)
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")
 ```
 
-    N Hay = 248,912 | N Needle = 2,000 
+    N Hay = 497,824 | N Needle = 2,000 
 
 ``` r
 t0 <- Sys.time()
@@ -413,7 +413,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 1.833018 mins
+    Time difference of 3.266467 mins
 
 ``` r
 # returning only the first match is faster
@@ -424,7 +424,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 8.785844 secs
+    Time difference of 16.31999 secs
 
 ``` r
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
@@ -459,7 +459,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 24.86895 secs
+    Time difference of 40.20792 secs
 
 ``` r
 # the only strings that matched to needle 1 should be those at 'banan_idx'
@@ -540,10 +540,10 @@ microbenchmark(loop_grep(shortndls, txt),
 
     Unit: seconds
                                             expr      min       lq     mean
-                       loop_grep(shortndls, txt) 6.322112 6.371980 6.634592
-                     lapply_grep(shortndls, txt) 6.256943 6.271585 6.440395
-     grepvec(shortndls, txt, matchrule = "last") 2.713864 2.757666 2.776852
+                       loop_grep(shortndls, txt) 5.926453 5.956094 6.035467
+                     lapply_grep(shortndls, txt) 5.990576 6.053632 6.161129
+     grepvec(shortndls, txt, matchrule = "last") 1.436324 1.459183 1.470272
        median       uq      max neval
-     6.491400 6.622775 7.718869    10
-     6.301391 6.507926 6.954658    10
-     2.768336 2.805932 2.833863    10
+     5.967900 6.046531 6.399030    10
+     6.120429 6.225788 6.517944    10
+     1.469406 1.481462 1.506663    10

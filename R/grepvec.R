@@ -65,8 +65,6 @@
 #' head(by_hay(x, value = TRUE))
 #' head(by_ndl(x, value = TRUE))
 #'
-#' @useDynLib grepvec, grepvec_regex_, grepvec_fixed_
-#'
 #' @export
 grepvec <- function(needles,
                     haystacks,
@@ -88,13 +86,11 @@ grepvec <- function(needles,
     out <- match.arg(out)
     matchrule_ix <- switch(matchrule, all = 0L, first = 1L, last = 2L)
     # grepvec (strings ndl, strings hay, integer m, bool i)
-    on.exit(.Call("on_exit_grepvec_"))
+    on.exit(on_exit_grepvec_())
     if (fixed) {
-        x <- .Call("grepvec_fixed_", needles, haystacks, matchrule_ix,
-                   ignore_case)
+        x <- grepvec_fixed_(needles, haystacks, matchrule_ix, ignore_case)
     } else {
-        x <- .Call("grepvec_regex_", needles, haystacks, matchrule_ix,
-                   ignore_case)
+        x <- grepvec_regex_(needles, haystacks, matchrule_ix, ignore_case)
     }
     # determine output format
     if (out == "needles" && value == FALSE)

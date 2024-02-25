@@ -5,7 +5,12 @@ format:
     toc: true
 ---
 
+Compiled using regex.h and cpp11
 
+TODO:
+figure out if I can obtain speeds at the original C level  
+then switch to boost::regex  
+- note, fork the main branch to get back to the simple C code and then add in TRE
 
 ```{r}
 # make sure you installed via remotes::install_github or devtools
@@ -154,7 +159,7 @@ tryCatch(
 
 ```{r big-hay-vec}
 # test grepvec on some bigger vectors
-hay <- c(txt, txt)
+hay <- c(txt, txt, txt, txt)
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")

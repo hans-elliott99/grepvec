@@ -1,0 +1,12 @@
+PKG_LIBS = -lboost_regex
+PKG_CFLAGS = $(C_VISIBILITY) 
+PKG_CXXFLAGS = $(CXX_VISIBILITY)
+
+SOURCES = cpp11.cpp grepvec.cpp
+OBJECTS = $(SOURCES:.cpp=.o)
+
+all: $(SHLIB)
+
+.PHONY: clean
+clean:
+	rm -f $(SHLIB) $(OBJECTS)
