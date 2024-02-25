@@ -6,8 +6,13 @@
 - [Compare grepvec with native R
   solutions](#compare-grepvec-with-native-r-solutions)
 
+Build info:
+
+- Main/simple C setup but using TRE.  
+- Bottom line: it is slightly slower than pure regex.h. Also seems
+  slightly slower than boost::regex
+
 ``` r
-# make sure you installed via remotes::install_github or devtools
 library(grepvec)
 library(microbenchmark)
 set.seed(1614)
@@ -408,7 +413,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 2.483955 mins
+    Time difference of 3.505171 mins
 
 ``` r
 # returning only the first match is faster
@@ -419,7 +424,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 12.03624 secs
+    Time difference of 16.28366 secs
 
 ``` r
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
@@ -454,7 +459,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 27.13047 secs
+    Time difference of 28.01481 secs
 
 ``` r
 # the only strings that matched to needle 1 should be those at 'banan_idx'
@@ -509,9 +514,10 @@ lapply_grep <- function(needles, haystacks) {
 
 # verify same results
 shortndls <- words[1:100]
-x_loop <- loop_grep(shortndls, txt)
-x_lapply <- lapply_grep(shortndls, txt)
-x_grepvec <- grepvec(shortndls, txt, matchrule = "last")
+shorttxt <- txt#[1:500]
+x_loop <- loop_grep(shortndls, shorttxt)
+x_lapply <- lapply_grep(shortndls, shorttxt)
+x_grepvec <- grepvec(shortndls, shorttxt, matchrule = "last")
 all(unlist(x_loop) == unlist(x_lapply))
 ```
 
@@ -526,18 +532,55 @@ all(unlist(x_lapply) == unlist(x_grepvec))
     [1] TRUE
 
 ``` r
-microbenchmark(loop_grep(shortndls, txt),
-               lapply_grep(shortndls, txt),
-               grepvec(shortndls, txt, matchrule = "last"),
+microbenchmark(loop_grep(shortndls, shorttxt),
+               lapply_grep(shortndls, shorttxt),
+               grepvec(shortndls, shorttxt, matchrule = "last"),
                times = 10)
 ```
 
     Unit: seconds
-                                            expr      min       lq     mean
-                       loop_grep(shortndls, txt) 5.015354 5.106655 5.193175
-                     lapply_grep(shortndls, txt) 5.116686 5.143838 5.200952
-     grepvec(shortndls, txt, matchrule = "last") 1.218099 1.223905 1.251596
+                                                 expr      min       lq     mean
+                       loop_grep(shortndls, shorttxt) 5.895530 5.932130 5.983602
+                     lapply_grep(shortndls, shorttxt) 5.870603 5.919709 5.949381
+     grepvec(shortndls, shorttxt, matchrule = "last") 2.631401 2.650195 2.701725
        median       uq      max neval
-     5.209785 5.267124 5.369964    10
-     5.210358 5.235419 5.302881    10
-     1.244400 1.263760 1.311056    10
+     5.966003 6.032124 6.127622    10
+     5.947482 5.988836 6.037601    10
+     2.673052 2.727254 2.904338    10
+
+``` r
+microbenchmark(
+    grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"),
+    grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com")
+)
+```
+
+    Unit: microseconds
+                                                                   expr  min   lq
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 12.8 13.5
+     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 22.0 23.1
+       mean median    uq  max neval
+     15.582  14.45 14.90 43.3   100
+     27.086  24.30 25.75 74.1   100
+
+``` r
+patterns <- gen_word_list(txt)
+cat("Length of search vector:", length(txt), "\n")
+```
+
+    Length of search vector: 124456 
+
+``` r
+microbenchmark(
+    grep(patterns[1], txt),
+    grepvec(patterns[1], txt)
+)
+```
+
+    Unit: milliseconds
+                          expr     min       lq     mean   median       uq      max
+        grep(patterns[1], txt) 54.6620 57.02765 58.09982 57.81535 58.70860  67.9556
+     grepvec(patterns[1], txt) 44.7529 47.12135 49.90266 48.01970 48.86245 127.0896
+     neval
+       100
+       100

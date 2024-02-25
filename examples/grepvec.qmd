@@ -5,10 +5,14 @@ format:
     toc: true
 ---
 
+Build info:  
+
+- Main/simple C setup but using TRE.  
+- Bottom line: it is slightly slower than pure regex.h. Also seems slightly slower than boost::regex  
+
 
 
 ```{r}
-# make sure you installed via remotes::install_github or devtools
 library(grepvec)
 library(microbenchmark)
 set.seed(1614)
@@ -239,17 +243,38 @@ lapply_grep <- function(needles, haystacks) {
 
 # verify same results
 shortndls <- words[1:100]
-x_loop <- loop_grep(shortndls, txt)
-x_lapply <- lapply_grep(shortndls, txt)
-x_grepvec <- grepvec(shortndls, txt, matchrule = "last")
+shorttxt <- txt#[1:500]
+x_loop <- loop_grep(shortndls, shorttxt)
+x_lapply <- lapply_grep(shortndls, shorttxt)
+x_grepvec <- grepvec(shortndls, shorttxt, matchrule = "last")
 all(unlist(x_loop) == unlist(x_lapply))
 
 # grepvec returns empty vec if no results, others return NULL. make equal
 x_grepvec <- lapply(x_grepvec, \(vec) if (length(vec) == 0) NULL else vec)
 all(unlist(x_lapply) == unlist(x_grepvec))
 
-microbenchmark(loop_grep(shortndls, txt),
-               lapply_grep(shortndls, txt),
-               grepvec(shortndls, txt, matchrule = "last"),
+microbenchmark(loop_grep(shortndls, shorttxt),
+               lapply_grep(shortndls, shorttxt),
+               grepvec(shortndls, shorttxt, matchrule = "last"),
                times = 10)
+
+```
+
+
+
+
+```{r}
+microbenchmark(
+    grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"),
+    grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com")
+)
+
+
+patterns <- gen_word_list(txt)
+cat("Length of search vector:", length(txt), "\n")
+microbenchmark(
+    grep(patterns[1], txt),
+    grepvec(patterns[1], txt)
+)
+
 ```

@@ -16,9 +16,16 @@
 #include <stdlib.h> //null
 #include <string.h> //memset
 #include <ctype.h>  //tolower
-#include <regex.h>  //regcomp,regexec,regfree
 #include <R.h>
 #include <Rinternals.h>
+
+// #include <regex.h>  //regcomp,regexec,regfree,regerror
+#include "tre/tre.h" //tre_regcomp,tre_regexec,tre_regfree,tre_regerror
+
+#define regcomp tre_regcomp
+#define regexec tre_regexec
+#define regfree tre_regfree
+#define regerror tre_regerror
 
 char rgxmsg[100];
 
