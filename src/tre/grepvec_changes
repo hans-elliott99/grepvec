@@ -10,3 +10,5 @@ Starting from R's modified TRE library, a few changes were made in the tre direc
     - The R developers define TRE_WCHAR and implement support for wide char (wchar_t) in order to support more encodings. Disabling for now since translating all chars to UTF8.  
     - Note that enabling wide char support slows down the program quite a bit on my machine.  
 - removed the Makefile.in and Makefile.win files from the tre directory as they are not needed.  
+- in xmalloc.c: changed calls to "abort" to "Rf_error" to match R's error handling and calls to "printf" to "Rprintf" - to silence warnings from R CMD check about calling entry points that may terminate R or write to stdout/stderr.  
+

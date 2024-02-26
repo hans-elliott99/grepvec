@@ -5,26 +5,17 @@ format:
     toc: true
 ---
 
-`r Sys.time()`
-
-Build notes:  
-- TRE regex engine  
-    - Use TRE stolen from R source  
-- R_alloc arrays in regex cache   
-- vmaxsetting  
-
-
-
-note - looks good! about as fast as we can get, I think.  
- - actually, very fast! even compared to og using regex.h with no fuss... almost reaches that speed
-
-now, make sure the code is in a good final place and then figure out how to compile on Windows without errors  
- - (just copy tre from R?)
-
+`r Sys.time()`  
 
 
 ```{r}
-# make sure you installed via remotes::install_github or devtools
+# compiled on:
+Sys.info()[c("sysname", "release", "version", "machine")]
+```
+
+
+```{r}
+# make sure you installed in some way
 library(grepvec)
 library(microbenchmark)
 set.seed(1614)
@@ -33,8 +24,8 @@ set.seed(1614)
 # create some data
 #
 txt <- tryCatch(
-    readRDS("../inst/extdata/shakespeare.rds"),
-    warning = \(e) readRDS("./inst/extdata/shakespeare.rds")
+    readLines("../inst/extdata/shakespeare.txt"),
+    warning = \(e) readLines("./inst/extdata/shakespeare.txt")
 )
 
 #
@@ -231,6 +222,7 @@ Suggestions wanted.
 #
 # implement as if matchrule = last, and use try because grep errors if bad regex
 #
+
 loop_grep <- function(needles, haystacks) {
     x <- vector(mode = "list", length = length(haystacks))
     for (i in seq_along(needles)) {
@@ -259,7 +251,6 @@ lapply_grep <- function(needles, haystacks) {
     return(x)
 }
 
-
 # verify same results
 shortndls <- words[1:100]
 shorttxt <- txt#[1:500]
@@ -282,9 +273,9 @@ microbenchmark(loop_grep(shortndls, shorttxt),
 
 Some comparisons with `base::grep`:  
 
-`grep` is slightly faster for simple use cases, when searching for a single pattern in a single string, which makes sense considering `grepvec` has some extra overhead.  
+`grep` is usually faster for simple use cases, when searching for a single pattern in a single string, which makes sense considering `grepvec` has some extra overhead. The difference in performance is variable and depends on the regular expression.    
 
-`grepvec` becomes slightly faster when comparing a pattern with a bunch of strings.  
+`grepvec` may become slightly faster when comparing a pattern with a bunch of strings (see the last example), but this can vary quite a bit based on the regular expression.  
 
 `grepvec` will be most useful when searching for a vector of patterns in a vector of strings. As demonstrated above, native R solutions aren't as fast.  
 
@@ -310,5 +301,36 @@ microbenchmark(
     grep(p, txt),
     grepvec(p, txt)
 )
+
+cat("regex:", p, "\n")
+```
+
+
+
+## Encodings
+
+```{r}
+latin1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
+                    encoding = "latin-1")
+
+print(latin1)
+print(iconv(latin1, "latin1", "UTF8"))
+
+grep("prem", latin1)
+## grepvec will translate to UTF8 internally
+grepvec("prem", latin1)
+
+grepvec("xe8re", latin1[1])
+grep("xe8re", latin1[1])
+
+grepvec("\xe8re", latin1[1])
+try(grep("\xe8re", latin1[1])) # error
+
+grep("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
+grepvec("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
+
+grep("première", latin1[1])
+
+grepvec("première", latin1[1])
 
 ```

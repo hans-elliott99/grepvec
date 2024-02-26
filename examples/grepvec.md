@@ -5,22 +5,22 @@
 - [Speed](#speed)
 - [Compare grepvec with native R
   solutions](#compare-grepvec-with-native-r-solutions)
+- [Encodings](#encodings)
 
-2024-02-25 16:29:16.693152
-
-Build notes:  
-- TRE regex engine  
-- Use TRE stolen from R source  
-- R_alloc arrays in regex cache  
-- vmaxsetting
-
-note - looks good! about as fast as we can get, I think.  
-now, make sure the code is in a good final place and then figure out how
-to compile on Windows without errors  
-- (just copy tre from R?)
+2024-02-26 01:53:29.829552
 
 ``` r
-# make sure you installed via remotes::install_github or devtools
+# compiled on:
+Sys.info()[c("sysname", "release", "version", "machine")]
+```
+
+                                 sysname                              release 
+                                 "Linux"  "5.10.16.3-microsoft-standard-WSL2" 
+                                 version                              machine 
+    "#1 SMP Fri Apr 2 22:23:49 UTC 2021"                             "x86_64" 
+
+``` r
+# make sure you installed in some way
 library(grepvec)
 library(microbenchmark)
 set.seed(1614)
@@ -105,7 +105,7 @@ m <- grepvec(words, txt[1:500], matchrule = "all", out = "object")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.2268648 secs
+    Time difference of 0.3122818 secs
 
 ``` r
 # show indices of needle matches (default behavior)
@@ -193,10 +193,9 @@ print(m)
 ```
 
 
-                *** grepvec ***
-    Searched for 2,000 regex patterns across 500 strings. 
-    Returned all matches.
-    First 6 results:
+        *** grepvec ***
+    Searched for 2,000 regex patterns across 500 strings (case sensitive). 
+    Returned all matches. First 6 results:
 
     "This is the 100th Etext file presented by Project Gutenberg, and"
      [1]   71  214  321  454  593 1237 1547 1742 1809 1840 1938
@@ -264,10 +263,9 @@ txt_var <- txt[300:500]
 ```
 
 
-                *** grepvec ***
-    Searched for 2,000 regex patterns across 201 strings. 
-    Returned all matches.
-    First 6 results:
+        *** grepvec ***
+    Searched for 2,000 regex patterns across 201 strings (case sensitive). 
+    Returned all matches. First 6 results:
 
     "But if thou live remembered not to be,"
      [1]  127  512  535  566  583  729  774  810  813 1074 1099 1305 1346 1554 1681
@@ -429,7 +427,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 3.274403 mins
+    Time difference of 3.610892 mins
 
 ``` r
 # returning only the first match is faster
@@ -440,7 +438,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 15.8395 secs
+    Time difference of 18.14899 secs
 
 ``` r
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
@@ -475,7 +473,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 21.16988 secs
+    Time difference of 23.3785 secs
 
 ``` r
 # the only strings that matched to needle 1 should be those at 'banan_idx'
@@ -500,6 +498,7 @@ Suggestions wanted.
 #
 # implement as if matchrule = last, and use try because grep errors if bad regex
 #
+
 loop_grep <- function(needles, haystacks) {
     x <- vector(mode = "list", length = length(haystacks))
     for (i in seq_along(needles)) {
@@ -528,10 +527,9 @@ lapply_grep <- function(needles, haystacks) {
     return(x)
 }
 
-
 # verify same results
 shortndls <- words[1:100]
-shorttxt <- txt[1:500]
+shorttxt <- txt#[1:500]
 x_loop <- loop_grep(shortndls, shorttxt)
 x_lapply <- lapply_grep(shortndls, shorttxt)
 x_grepvec <- grepvec(shortndls, shorttxt, matchrule = "last")
@@ -552,20 +550,33 @@ all(unlist(x_lapply) == unlist(x_grepvec))
 microbenchmark(loop_grep(shortndls, shorttxt),
                lapply_grep(shortndls, shorttxt),
                grepvec(shortndls, shorttxt, matchrule = "last"),
-               times = 50)
+               times = 10)
 ```
 
-    Unit: milliseconds
-                                                 expr     min      lq     mean
-                       loop_grep(shortndls, shorttxt) 21.2028 23.0710 24.01895
-                     lapply_grep(shortndls, shorttxt) 21.2551 22.7762 24.43227
-     grepvec(shortndls, shorttxt, matchrule = "last")  9.0740 10.1547 10.60806
-      median      uq     max neval
-     23.6632 24.6513 30.5539    50
-     23.4977 24.8182 54.1788    50
-     10.4010 10.8343 13.6776    50
+    Unit: seconds
+                                                 expr      min       lq     mean
+                       loop_grep(shortndls, shorttxt) 5.968324 6.110611 6.251295
+                     lapply_grep(shortndls, shorttxt) 6.062536 6.145169 6.299458
+     grepvec(shortndls, shorttxt, matchrule = "last") 2.685116 2.708908 2.790533
+       median       uq      max neval
+     6.220951 6.401024 6.608073    10
+     6.312261 6.373216 6.702655    10
+     2.755133 2.847802 3.013309    10
 
 Some comparisons with `base::grep`:
+
+`grep` is usually faster for simple use cases, when searching for a
+single pattern in a single string, which makes sense considering
+`grepvec` has some extra overhead. The difference in performance is
+variable and depends on the regular expression.
+
+`grepvec` may become slightly faster when comparing a pattern with a
+bunch of strings (see the last example), but this can vary quite a bit
+based on the regular expression.
+
+`grepvec` will be most useful when searching for a vector of patterns in
+a vector of strings. As demonstrated above, native R solutions aren’t as
+fast.
 
 ``` r
 microbenchmark(
@@ -576,11 +587,11 @@ microbenchmark(
 
     Unit: microseconds
                                                                    expr  min    lq
-        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.5 13.85
-     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 24.2 24.90
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.7 14.55
+     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 24.6 25.40
        mean median    uq  max neval
-     15.130  14.65 15.25 42.8   100
-     26.814  25.85 26.95 75.3   100
+     16.451  15.40 16.15 47.4   100
+     28.754  26.95 27.65 79.8   100
 
 ``` r
 microbenchmark(
@@ -590,12 +601,12 @@ microbenchmark(
 ```
 
     Unit: microseconds
-                                                expr  min    lq   mean median    uq
-        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.1  4.55  5.495   5.15  5.50
-     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 19.8 20.50 24.534  21.20 22.05
+                                                expr  min   lq   mean median   uq
+        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.2  4.5  5.517    5.3  5.6
+     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 19.9 20.7 22.833   21.3 21.7
        max neval
-      20.6   100
-     117.7   100
+      20.7   100
+     109.9   100
 
 ``` r
 microbenchmark(
@@ -608,22 +619,137 @@ microbenchmark(
                                                                                                     expr
         grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
      grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
-      min    lq   mean median   uq   max neval
-      5.5  6.15  9.286   7.05 11.4  62.2   100
-     20.2 21.10 29.432  22.35 37.3 111.4   100
+      min   lq   mean median   uq  max neval
+      5.5  5.8  7.047    6.7  7.0 27.9   100
+     20.5 21.2 22.729   21.8 22.3 64.1   100
 
 ``` r
-pattern <- gen_word_list(txt, n = 1)
+p <- gen_word_list(txt, n = 1)
 microbenchmark(
-    grep(pattern, txt),
-    grepvec(pattern, txt)
+    grep(p, txt),
+    grepvec(p, txt)
 )
 ```
 
     Unit: milliseconds
-                      expr     min       lq     mean   median       uq      max
-        grep(pattern, txt) 54.7103 57.21595 58.75834 58.60015 59.24935  71.4703
-     grepvec(pattern, txt) 41.5938 43.37910 46.74549 44.60015 46.59615 105.8654
-     neval
-       100
-       100
+                expr     min       lq     mean   median       uq     max neval
+        grep(p, txt) 52.4364 54.55835 56.26534 55.35220 56.30320 67.8897   100
+     grepvec(p, txt) 21.7852 22.85490 25.54108 23.45775 24.11895 94.0804   100
+
+``` r
+cat("regex:", p, "\n")
+```
+
+    regex: That 
+
+## Encodings
+
+``` r
+latin1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
+                    encoding = "latin-1")
+
+print(latin1)
+```
+
+    [1] "premi\xe8re is first"            "premie?re is slightly different"
+    [3] "????????? is Cyrillic"           "? am Deseret"                   
+
+``` r
+print(iconv(latin1, "latin1", "UTF8"))
+```
+
+    [1] "première is first"               "premie?re is slightly different"
+    [3] "????????? is Cyrillic"           "? am Deseret"                   
+
+``` r
+grep("prem", latin1)
+```
+
+    Warning in grep("prem", latin1): unable to translate 'premi<e8>re is first' to
+    a wide string
+
+    Warning in grep("prem", latin1): input string 1 is invalid
+
+    [1] 2
+
+``` r
+## grepvec will translate to UTF8 internally
+grepvec("prem", latin1)
+```
+
+    [[1]]
+    [1] 1
+
+    [[2]]
+    [1] 1
+
+    [[3]]
+    integer(0)
+
+    [[4]]
+    integer(0)
+
+``` r
+grepvec("xe8re", latin1[1])
+```
+
+    [[1]]
+    integer(0)
+
+``` r
+grep("xe8re", latin1[1])
+```
+
+    Warning in grep("xe8re", latin1[1]): unable to translate 'premi<e8>re is first'
+    to a wide string
+
+    Warning in grep("xe8re", latin1[1]): input string 1 is invalid
+
+    integer(0)
+
+``` r
+grepvec("\xe8re", latin1[1])
+```
+
+    [[1]]
+    [1] 1
+
+``` r
+try(grep("\xe8re", latin1[1])) # error
+```
+
+    Warning in grep("\xe8re", latin1[1]): unable to translate '<e8>re' to a wide
+    string
+
+    Error in grep("\xe8re", latin1[1]) : regular expression is invalid
+
+``` r
+grep("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
+```
+
+    [1] 1
+
+``` r
+grepvec("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
+```
+
+    [[1]]
+    [1] 1
+
+``` r
+grep("première", latin1[1])
+```
+
+    Warning in grep("première", latin1[1]): unable to translate 'premi<e8>re is
+    first' to a wide string
+
+    Warning in grep("première", latin1[1]): input string 1 is invalid
+
+    integer(0)
+
+``` r
+grepvec("première", latin1[1])
+```
+
+    [[1]]
+    integer(0)

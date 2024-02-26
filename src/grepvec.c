@@ -4,16 +4,14 @@
  * Date: 2024-02-16
  * License: MIT 2024 grepvec authors
  *
- *
- *
  * Args:
- *   haystck - character(n_hay) of strings to search over
- *   needles - character(n_ndl) of sub-strings to search with
- *   matchrule - integer(1), 0 for all matches, 1 for first, 2 for last
+ *   haystck - character(Nh) of strings to search over
+ *   needles - character(Nn) of sub-strings to search with
+ *   matchrule - integer(1), determining the output content
  *   fixed - integer(1), if 1 look for exact sub-string match, else use regex
- *   ignorecase - integer(1), if 1 ignore case when matching
+ *   ignorecase - integer(1), if 1 ignore case when regex searching
  */
-// #include <stdlib.h> // null
+#include <stdlib.h> // null
 #include <string.h> // memset
 #include <R.h>
 #include <Rinternals.h>
@@ -23,7 +21,7 @@
 
 
 /* interval at which to check interrupts */
-#define NINTERRUPT 1000000
+#define NINTERRUPT 1000
 
 
 enum MatchRule {

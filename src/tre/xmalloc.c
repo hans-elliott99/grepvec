@@ -24,12 +24,18 @@
 
 /* fake definition */
 extern void Rf_error(const char *str);
+extern void Rprintf(const char *str, ...);
 #define assert(a) R_assert(a)
 
 static void assert(int expr)
 {
     if(expr == 0)
 	Rf_error("internal allocation error in TRE");
+}
+
+static void Rabort(void)
+{
+    Rf_error("internal allocation error in TRE");
 }
 
 
@@ -150,8 +156,8 @@ hash_table_del(hashTable *tbl, void *ptr)
   item = tbl->table[i];
   if (item == NULL)
     {
-      printf("xfree: invalid ptr %p\n", ptr);
-      abort();
+      Rprintf("xfree: invalid ptr %p\n", ptr);
+      Rabort();
     }
   prev = NULL;
   while (item->ptr != ptr)
@@ -161,8 +167,8 @@ hash_table_del(hashTable *tbl, void *ptr)
     }
   if (item->ptr != ptr)
     {
-      printf("xfree: invalid ptr %p\n", ptr);
-      abort();
+      Rprintf("xfree: invalid ptr %p\n", ptr);
+      Rabort();
     }
 
   xmalloc_current -= item->bytes;
@@ -226,7 +232,7 @@ xmalloc_dump_leaks(void)
       item = xmalloc_table->table[i];
       while (item != NULL)
 	{
-	  printf("%s:%d: %s: %d bytes at %p not freed\n",
+	  Rprintf("%s:%d: %s: %d bytes at %p not freed\n",
 		 item->file, item->line, item->func, item->bytes, item->ptr);
 	  num_leaks++;
 	  leaked_bytes += item->bytes;
@@ -234,20 +240,20 @@ xmalloc_dump_leaks(void)
 	}
     }
   if (num_leaks == 0)
-    printf("No memory leaks.\n");
+    Rprintf("No memory leaks.\n");
   else
-    printf("%d unfreed memory chuncks, total %d unfreed bytes.\n",
+    Rprintf("%d unfreed memory chuncks, total %d unfreed bytes.\n",
 	   num_leaks, leaked_bytes);
-  printf("Peak memory consumption %d bytes (%.1f kB, %.1f MB) in %d blocks ",
+  Rprintf("Peak memory consumption %d bytes (%.1f kB, %.1f MB) in %d blocks ",
 	 xmalloc_peak, (double)xmalloc_peak / 1024,
 	 (double)xmalloc_peak / (1024*1024), xmalloc_peak_blocks);
-  printf("(average ");
+  Rprintf("(average ");
   if (xmalloc_peak_blocks)
-    printf("%d", ((xmalloc_peak + xmalloc_peak_blocks / 2)
+    Rprintf("%d", ((xmalloc_peak + xmalloc_peak_blocks / 2)
 		  / xmalloc_peak_blocks));
   else
-    printf("N/A");
-  printf(" bytes per block).\n");
+    Rprintf("N/A");
+  Rprintf(" bytes per block).\n");
 
   return num_leaks;
 }
@@ -264,13 +270,13 @@ xmalloc_impl(size_t size, const char *file, int line, const char *func)
     {
       xmalloc_fail_after = -2;
 #if 0
-      printf("xmalloc: forced failure %s:%d: %s\n", file, line, func);
+      Rprintf("xmalloc: forced failure %s:%d: %s\n", file, line, func);
 #endif
       return NULL;
     }
   else if (xmalloc_fail_after == -2)
     {
-      printf("xmalloc: called after failure from %s:%d: %s\n",
+      Rprintf("xmalloc: called after failure from %s:%d: %s\n",
 	     file, line, func);
       assert(0);
     }
@@ -296,13 +302,13 @@ xcalloc_impl(size_t nmemb, size_t size, const char *file, int line,
     {
       xmalloc_fail_after = -2;
 #if 0
-      printf("xcalloc: forced failure %s:%d: %s\n", file, line, func);
+      Rprintf("xcalloc: forced failure %s:%d: %s\n", file, line, func);
 #endif
       return NULL;
     }
   else if (xmalloc_fail_after == -2)
     {
-      printf("xcalloc: called after failure from %s:%d: %s\n",
+      Rprintf("xcalloc: called after failure from %s:%d: %s\n",
 	     file, line, func);
       assert(0);
     }
@@ -345,7 +351,7 @@ xrealloc_impl(void *ptr, size_t new_size, const char *file, int line,
     }
   else if (xmalloc_fail_after == -2)
     {
-      printf("xrealloc: called after failure from %s:%d: %s\n",
+      Rprintf("xrealloc: called after failure from %s:%d: %s\n",
 	     file, line, func);
       assert(0);
     }

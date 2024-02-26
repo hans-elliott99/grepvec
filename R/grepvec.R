@@ -83,8 +83,10 @@ grepvec <- function(needles,
     if (is.na(fixed)) stop("Argument 'fixed' must be logical.")
     ignore_case <- as.logical(ignore_case)
     if (is.na(ignore_case)) stop("Argument 'ignore_case' must be logical.")
-    if (fixed && ignore_case)
+    if (fixed && ignore_case) {
+        ignore_case <- FALSE
         warning("Argument 'ignore_case' is ignored when 'fixed' is TRUE.")
+    }
     out <- match.arg(out)
     matchrule_ix <- switch(matchrule, all = 0L, first = 1L, last = 2L)
     # grepvec (strings ndl, strings hay, integer m, bool i)
@@ -217,18 +219,19 @@ print.grepvec <- function(x, n = 6, ...) {
     n <- max(1, n[1L])
     nhay <- nshow <- length(x$haystacks)
     nndl <- length(x$needles)
-    cat("\n\t\t\t*** grepvec ***\n")
+    cat("\n\t*** grepvec ***\n")
     cat("Searched for",
         format(nndl, big.mark = ",", scientific = FALSE),
         if (x$fixed) "fixed" else "regex",
         if (nndl == 1) "pattern" else "patterns",
         "across",
         format(nhay, big.mark = ",", scientific = FALSE),
-        if (nhay == 1) "string." else "strings.",
+        if (nhay == 1) "string" else "strings",
+        "(case", if (x$ignore_case) "insensitive)." else "sensitive).",
         "\nReturned",
         if (x$matchrule == "first") "the first match.\n"
         else if (x$matchrule == "last") "the last match.\n"
-        else "all matches.\n")
+        else "all matches. ")
 
     byhay <- by_hay(x)
     if (nshow > n) {
@@ -255,6 +258,7 @@ print.grepvec <- function(x, n = 6, ...) {
     if (nhay > nshow)
         cat("\n... out of ",
             format(nhay, big.mark = ",", scientific = FALSE),
-            " haystacks.\n", sep = "")
+            " haystacks.", sep = "")
+    cat("\n")
     return(invisible(x))
 }

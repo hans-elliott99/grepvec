@@ -12,6 +12,13 @@ search for a single pattern in a vector of strings. To search for many
 possible patterns across a string, some form of looping is required.
 \code{grepvec} implements this in C so that it is faster than native R solutions.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item Report bugs at \url{https://github.com/hans-elliott99/grepvec/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Hans Elliott \email{hanselliott61@gmail.com}
 
