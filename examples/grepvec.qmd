@@ -5,6 +5,22 @@ format:
     toc: true
 ---
 
+`r Sys.time()`
+
+Build notes:  
+- TRE regex engine  
+    - Use TRE stolen from R source  
+- R_alloc arrays in regex cache   
+- vmaxsetting  
+
+
+
+note - looks good! about as fast as we can get, I think.  
+ - actually, very fast! even compared to og using regex.h with no fuss... almost reaches that speed
+
+now, make sure the code is in a good final place and then figure out how to compile on Windows without errors  
+ - (just copy tre from R?)
+
 
 
 ```{r}
@@ -16,7 +32,10 @@ set.seed(1614)
 #
 # create some data
 #
-txt <- readRDS("../inst/extdata/shakespeare.rds")
+txt <- tryCatch(
+    readRDS("../inst/extdata/shakespeare.rds"),
+    warning = \(e) readRDS("./inst/extdata/shakespeare.rds")
+)
 
 #
 # get some random words from the txt to use as patterns
@@ -154,7 +173,7 @@ tryCatch(
 
 ```{r big-hay-vec}
 # test grepvec on some bigger vectors
-hay <- c(txt, txt)
+hay <- c(txt, txt, txt, txt)
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")
@@ -243,17 +262,53 @@ lapply_grep <- function(needles, haystacks) {
 
 # verify same results
 shortndls <- words[1:100]
-x_loop <- loop_grep(shortndls, txt)
-x_lapply <- lapply_grep(shortndls, txt)
-x_grepvec <- grepvec(shortndls, txt, matchrule = "last")
+shorttxt <- txt#[1:500]
+x_loop <- loop_grep(shortndls, shorttxt)
+x_lapply <- lapply_grep(shortndls, shorttxt)
+x_grepvec <- grepvec(shortndls, shorttxt, matchrule = "last")
 all(unlist(x_loop) == unlist(x_lapply))
 
 # grepvec returns empty vec if no results, others return NULL. make equal
 x_grepvec <- lapply(x_grepvec, \(vec) if (length(vec) == 0) NULL else vec)
 all(unlist(x_lapply) == unlist(x_grepvec))
 
-microbenchmark(loop_grep(shortndls, txt),
-               lapply_grep(shortndls, txt),
-               grepvec(shortndls, txt, matchrule = "last"),
+microbenchmark(loop_grep(shortndls, shorttxt),
+               lapply_grep(shortndls, shorttxt),
+               grepvec(shortndls, shorttxt, matchrule = "last"),
                times = 10)
+```
+
+
+
+Some comparisons with `base::grep`:  
+
+`grep` is slightly faster for simple use cases, when searching for a single pattern in a single string, which makes sense considering `grepvec` has some extra overhead.  
+
+`grepvec` becomes slightly faster when comparing a pattern with a bunch of strings.  
+
+`grepvec` will be most useful when searching for a vector of patterns in a vector of strings. As demonstrated above, native R solutions aren't as fast.  
+
+
+```{r}
+microbenchmark(
+    grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"),
+    grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com")
+)
+
+microbenchmark(
+    grep("([^ @]+)@([^ @]+)", "name@server.com"),
+    grepvec("([^ @]+)@([^ @]+)", "name@server.com")
+)
+
+microbenchmark(
+    grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)", c("01/01/1996", "2001-01-1")),
+    grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)", c("01/01/1996", "2001-01-1"))
+)
+
+p <- gen_word_list(txt, n = 1)
+microbenchmark(
+    grep(p, txt),
+    grepvec(p, txt)
+)
+
 ```

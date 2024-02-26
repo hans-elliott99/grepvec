@@ -6,6 +6,19 @@
 - [Compare grepvec with native R
   solutions](#compare-grepvec-with-native-r-solutions)
 
+2024-02-25 16:29:16.693152
+
+Build notes:  
+- TRE regex engine  
+- Use TRE stolen from R source  
+- R_alloc arrays in regex cache  
+- vmaxsetting
+
+note - looks good! about as fast as we can get, I think.  
+now, make sure the code is in a good final place and then figure out how
+to compile on Windows without errors  
+- (just copy tre from R?)
+
 ``` r
 # make sure you installed via remotes::install_github or devtools
 library(grepvec)
@@ -15,7 +28,10 @@ set.seed(1614)
 #
 # create some data
 #
-txt <- readRDS("../inst/extdata/shakespeare.rds")
+txt <- tryCatch(
+    readRDS("../inst/extdata/shakespeare.rds"),
+    warning = \(e) readRDS("./inst/extdata/shakespeare.rds")
+)
 
 #
 # get some random words from the txt to use as patterns
@@ -89,7 +105,7 @@ m <- grepvec(words, txt[1:500], matchrule = "all", out = "object")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.211786 secs
+    Time difference of 0.2268648 secs
 
 ``` r
 # show indices of needle matches (default behavior)
@@ -369,11 +385,11 @@ Invalid regex patterns:
 grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ```
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
-    not compile regex for pattern: [bad
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): TRE
+    pattern compilation error: Missing ']'
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): could
-    not compile regex for pattern: (regex
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): TRE
+    pattern compilation error: Missing ')'
 
     [[1]]
     integer(0)
@@ -397,13 +413,13 @@ tryCatch(
 
 ``` r
 # test grepvec on some bigger vectors
-hay <- c(txt, txt)
+hay <- c(txt, txt, txt, txt)
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")
 ```
 
-    N Hay = 248,912 | N Needle = 2,000 
+    N Hay = 497,824 | N Needle = 2,000 
 
 ``` r
 t0 <- Sys.time()
@@ -413,7 +429,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 1.833018 mins
+    Time difference of 3.274403 mins
 
 ``` r
 # returning only the first match is faster
@@ -424,7 +440,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 8.785844 secs
+    Time difference of 15.8395 secs
 
 ``` r
 # large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
@@ -459,7 +475,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 24.86895 secs
+    Time difference of 21.16988 secs
 
 ``` r
 # the only strings that matched to needle 1 should be those at 'banan_idx'
@@ -515,9 +531,10 @@ lapply_grep <- function(needles, haystacks) {
 
 # verify same results
 shortndls <- words[1:100]
-x_loop <- loop_grep(shortndls, txt)
-x_lapply <- lapply_grep(shortndls, txt)
-x_grepvec <- grepvec(shortndls, txt, matchrule = "last")
+shorttxt <- txt[1:500]
+x_loop <- loop_grep(shortndls, shorttxt)
+x_lapply <- lapply_grep(shortndls, shorttxt)
+x_grepvec <- grepvec(shortndls, shorttxt, matchrule = "last")
 all(unlist(x_loop) == unlist(x_lapply))
 ```
 
@@ -532,18 +549,81 @@ all(unlist(x_lapply) == unlist(x_grepvec))
     [1] TRUE
 
 ``` r
-microbenchmark(loop_grep(shortndls, txt),
-               lapply_grep(shortndls, txt),
-               grepvec(shortndls, txt, matchrule = "last"),
-               times = 10)
+microbenchmark(loop_grep(shortndls, shorttxt),
+               lapply_grep(shortndls, shorttxt),
+               grepvec(shortndls, shorttxt, matchrule = "last"),
+               times = 50)
 ```
 
-    Unit: seconds
-                                            expr      min       lq     mean
-                       loop_grep(shortndls, txt) 6.322112 6.371980 6.634592
-                     lapply_grep(shortndls, txt) 6.256943 6.271585 6.440395
-     grepvec(shortndls, txt, matchrule = "last") 2.713864 2.757666 2.776852
-       median       uq      max neval
-     6.491400 6.622775 7.718869    10
-     6.301391 6.507926 6.954658    10
-     2.768336 2.805932 2.833863    10
+    Unit: milliseconds
+                                                 expr     min      lq     mean
+                       loop_grep(shortndls, shorttxt) 21.2028 23.0710 24.01895
+                     lapply_grep(shortndls, shorttxt) 21.2551 22.7762 24.43227
+     grepvec(shortndls, shorttxt, matchrule = "last")  9.0740 10.1547 10.60806
+      median      uq     max neval
+     23.6632 24.6513 30.5539    50
+     23.4977 24.8182 54.1788    50
+     10.4010 10.8343 13.6776    50
+
+Some comparisons with `base::grep`:
+
+``` r
+microbenchmark(
+    grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"),
+    grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com")
+)
+```
+
+    Unit: microseconds
+                                                                   expr  min    lq
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.5 13.85
+     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 24.2 24.90
+       mean median    uq  max neval
+     15.130  14.65 15.25 42.8   100
+     26.814  25.85 26.95 75.3   100
+
+``` r
+microbenchmark(
+    grep("([^ @]+)@([^ @]+)", "name@server.com"),
+    grepvec("([^ @]+)@([^ @]+)", "name@server.com")
+)
+```
+
+    Unit: microseconds
+                                                expr  min    lq   mean median    uq
+        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.1  4.55  5.495   5.15  5.50
+     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 19.8 20.50 24.534  21.20 22.05
+       max neval
+      20.6   100
+     117.7   100
+
+``` r
+microbenchmark(
+    grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)", c("01/01/1996", "2001-01-1")),
+    grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)", c("01/01/1996", "2001-01-1"))
+)
+```
+
+    Unit: microseconds
+                                                                                                    expr
+        grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
+     grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
+      min    lq   mean median   uq   max neval
+      5.5  6.15  9.286   7.05 11.4  62.2   100
+     20.2 21.10 29.432  22.35 37.3 111.4   100
+
+``` r
+pattern <- gen_word_list(txt, n = 1)
+microbenchmark(
+    grep(pattern, txt),
+    grepvec(pattern, txt)
+)
+```
+
+    Unit: milliseconds
+                      expr     min       lq     mean   median       uq      max
+        grep(pattern, txt) 54.7103 57.21595 58.75834 58.60015 59.24935  71.4703
+     grepvec(pattern, txt) 41.5938 43.37910 46.74549 44.60015 46.59615 105.8654
+     neval
+       100
+       100

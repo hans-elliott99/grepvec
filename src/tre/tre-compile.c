@@ -17,7 +17,7 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 #include <stdio.h>
-#include <assert.h>
+//#include <assert.h>
 #include <string.h>
 
 #include "tre-internal.h"
@@ -26,7 +26,10 @@
 #include "tre-ast.h"
 #include "tre-parse.h"
 #include "tre-compile.h"
+#include "tre.h"
 #include "xmalloc.h"
+
+#define assert(a) R_assert(a)
 
 /*
   Algorithms to setup tags so that submatch addressing can be done.
@@ -688,8 +691,8 @@ tre_copy_ast(tre_mem_t mem, tre_stack_t *stack, tre_ast_node_t *ast,
 	      {
 		tre_literal_t *lit = node->obj;
 		int pos = lit->position;
-		int min = lit->code_min;
-		int max = lit->code_max;
+		int min = (int)lit->code_min;
+		int max = (int)lit->code_max;
 		if (!IS_SPECIAL(lit) || IS_BACKREF(lit))
 		  {
 		    /* XXX - e.g. [ab] has only one position but two
@@ -715,6 +718,7 @@ tre_copy_ast(tre_mem_t mem, tre_stack_t *stack, tre_ast_node_t *ast,
 		if (*result == NULL)
 		  status = REG_ESPACE;
 
+                ((tre_literal_t*)(*result)->obj)->u.class = lit->u.class;  
 		if (pos > *max_pos)
 		  *max_pos = pos;
 		break;
@@ -1235,7 +1239,7 @@ tre_match_empty(tre_stack_t *stack, tre_ast_node_t *node, int *tags,
 			  break;
 		      if (tags[i] < 0)
 			{
-			  tags[i] = lit->code_max;
+			  tags[i] = (int)lit->code_max;
 			  tags[i + 1] = -1;
 			}
 		    }
@@ -1782,60 +1786,81 @@ tre_make_trans(tre_pos_and_tags_t *p1, tre_pos_and_tags_t *p2,
 /* Converts the syntax tree to a TNFA.	All the transitions in the TNFA are
    labelled with one character range (there are no transitions on empty
    strings).  The TNFA takes O(n^2) space in the worst case, `n' is size of
-   the regexp. */
+   the regexp.
+   This is the iterative version using a stack (previously used recursion
+   which will fail for large patterns)
+ */
 static reg_errcode_t
-tre_ast_to_tnfa(tre_ast_node_t *node, tre_tnfa_transition_t *transitions,
-		int *counts, int *offs)
+tre_ast_to_tnfa_iter(tre_stack_t *stack, tre_ast_node_t *node, tre_tnfa_transition_t *transitions,
+		     int *counts, int *offs)
 {
   tre_union_t *uni;
   tre_catenation_t *cat;
   tre_iteration_t *iter;
   reg_errcode_t errcode = REG_OK;
 
-  /* XXX - recurse using a stack!. */
-  switch (node->type)
-    {
-    case LITERAL:
-      break;
-    case UNION:
-      uni = (tre_union_t *)node->obj;
-      errcode = tre_ast_to_tnfa(uni->left, transitions, counts, offs);
-      if (errcode != REG_OK)
-	return errcode;
-      errcode = tre_ast_to_tnfa(uni->right, transitions, counts, offs);
-      break;
+  STACK_PUSHR(stack, voidptr, node);
 
-    case CATENATION:
-      cat = (tre_catenation_t *)node->obj;
-      /* Add a transition from each position in cat->left->lastpos
-	 to each position in cat->right->firstpos. */
-      errcode = tre_make_trans(cat->left->lastpos, cat->right->firstpos,
-			       transitions, counts, offs);
-      if (errcode != REG_OK)
-	return errcode;
-      errcode = tre_ast_to_tnfa(cat->left, transitions, counts, offs);
-      if (errcode != REG_OK)
-	return errcode;
-      errcode = tre_ast_to_tnfa(cat->right, transitions, counts, offs);
-      break;
+  while (tre_stack_num_objects(stack)) {
+    node = (tre_ast_node_t*) tre_stack_pop_voidptr(stack);
 
-    case ITERATION:
-      iter = (tre_iteration_t *)node->obj;
-      assert(iter->max == -1 || iter->max == 1);
+    switch (node->type)
+      {
+      case LITERAL:
+	break;
 
-      if (iter->max == -1)
-	{
-	  assert(iter->min == 0 || iter->min == 1);
-	  /* Add a transition from each last position in the iterated
-	     expression to each first position. */
-	  errcode = tre_make_trans(iter->arg->lastpos, iter->arg->firstpos,
-				   transitions, counts, offs);
-	  if (errcode != REG_OK)
-	    return errcode;
-	}
-      errcode = tre_ast_to_tnfa(iter->arg, transitions, counts, offs);
-      break;
-    }
+      case UNION:
+	uni = (tre_union_t *)node->obj;
+	STACK_PUSHR(stack, voidptr, uni->right);
+	STACK_PUSHR(stack, voidptr, uni->left);
+	break;
+
+      case CATENATION:
+	cat = (tre_catenation_t *)node->obj;
+	/* Add a transition from each position in cat->left->lastpos
+	   to each position in cat->right->firstpos. */
+	errcode = tre_make_trans(cat->left->lastpos, cat->right->firstpos,
+				 transitions, counts, offs);
+	if (errcode != REG_OK)
+	  return errcode;
+	
+	STACK_PUSHR(stack, voidptr, cat->right);
+	STACK_PUSHR(stack, voidptr, cat->left);
+	break;
+
+      case ITERATION:
+	iter = (tre_iteration_t *)node->obj;
+	// assert(iter->max == -1 || iter->max == 1);
+	if(!(iter->max == -1 || iter->max == 1)) return REG_BADBR;
+
+	if (iter->max == -1)
+	  {
+	    // assert(iter->min == 0 || iter->min == 1);
+	    if(!(iter->min == 0 || iter->min == 1)) return REG_BADBR;
+	    /* Add a transition from each last position in the iterated
+	       expression to each first position. */
+	    errcode = tre_make_trans(iter->arg->lastpos, iter->arg->firstpos,
+				     transitions, counts, offs);
+	    if (errcode != REG_OK)
+	      return errcode;	  
+	  }
+	STACK_PUSHR(stack, voidptr, iter->arg);
+	break;
+      }
+  }
+  return REG_OK;
+}
+
+static reg_errcode_t
+tre_ast_to_tnfa(tre_ast_node_t *node, tre_tnfa_transition_t *transitions,
+		int *counts, int *offs)
+{
+  reg_errcode_t errcode;
+  tre_stack_t *stack;
+  /* I made up max_size, there is no reason for that particular value */
+  stack = tre_stack_new(1024, 256*1024, 4096);
+  errcode = tre_ast_to_tnfa_iter(stack, node, transitions, counts, offs);
+  tre_stack_destroy(stack);
   return errcode;
 }
 
@@ -2240,7 +2265,12 @@ tre_version(void)
   if (str[0] == 0)
     {
       (void) tre_config(TRE_CONFIG_VERSION, &version);
-      (void) snprintf(str, sizeof(str), "TRE %s (BSD)", version);
+	  assert(strlen(version) < 200);
+#if defined(_MSC_VER)
+	  (void) _snprintf(str, sizeof(str), "TRE %s R_fixes (BSD)", version);
+#else
+	  (void) snprintf(str, sizeof(str), "TRE %s R_fixes (BSD)", version);
+#endif
     }
   return str;
 }

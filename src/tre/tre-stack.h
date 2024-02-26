@@ -10,7 +10,6 @@
 #ifndef TRE_STACK_H
 #define TRE_STACK_H 1
 
-// #include "../local_includes/tre.h"
 #include "tre.h"
 
 typedef struct tre_stack_rec tre_stack_t;

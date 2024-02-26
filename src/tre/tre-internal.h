@@ -17,9 +17,7 @@
 #include <wctype.h>
 #endif /* !HAVE_WCTYPE_H */
 
-#include <limits.h>
 #include <ctype.h>
-// #include "../local_includes/tre.h"
 #include "tre.h"
 
 #ifdef TRE_DEBUG
@@ -50,10 +48,16 @@
 
 /* Wide characters. */
 typedef wint_t tre_cint_t;
-#if WCHAR_MAX <= INT_MAX
-#define TRE_CHAR_MAX WCHAR_MAX
-#else /* WCHAR_MAX > INT_MAX */
-#define TRE_CHAR_MAX INT_MAX
+/* Workaround problem seen on AIX, (2010 & 2015), e.g.,
+    https://stat.ethz.ch/pipermail/r-devel/2015-October/071902.html
+  WCHAR_MAX = UINT32_MAX on AIX and that is "not possible to work"
+  Solaris-sparcv9   WCHAR_MAX = INT32_MAX
+  Linux amd64       WCHAR_MAX = INT32_MAX
+*/
+#if WCHAR_MAX == UINT32_MAX
+# define TRE_CHAR_MAX INT32_MAX
+#else
+# define TRE_CHAR_MAX WCHAR_MAX
 #endif
 
 #ifdef TRE_MULTIBYTE
@@ -112,15 +116,16 @@ typedef short tre_cint_t;
 
 #endif /* !TRE_WCHAR */
 
-#if defined(TRE_WCHAR) && defined(HAVE_ISWCTYPE) && defined(HAVE_WCTYPE)
+/* _WIN32 opt-out is R addition - iswctype is missing "blank" */
+#if !defined(_WIN32) && defined(TRE_WCHAR) && defined(HAVE_ISWCTYPE) && defined(HAVE_WCTYPE)
 #define TRE_USE_SYSTEM_WCTYPE 1
 #endif
 
 #ifdef TRE_USE_SYSTEM_WCTYPE
 /* Use system provided iswctype() and wctype(). */
 typedef wctype_t tre_ctype_t;
-#define tre_isctype iswctype
-#define tre_ctype   wctype
+#define tre_isctype(c, type) iswctype(c, type)
+#define tre_ctype(s)   wctype(s)
 #else /* !TRE_USE_SYSTEM_WCTYPE */
 /* Define our own versions of iswctype() and wctype(). */
 typedef int (*tre_ctype_t)(tre_cint_t);
@@ -132,9 +137,10 @@ typedef enum { STR_WIDE, STR_BYTE, STR_MBS, STR_USER } tre_str_type_t;
 
 /* Returns number of bytes to add to (char *)ptr to make it
    properly aligned for the type. */
+/* R change:  was (long) but that is shorter than pointer on Win64 */
 #define ALIGN(ptr, type) \
-  ((((long)ptr) % sizeof(type)) \
-   ? (sizeof(type) - (((long)ptr) % sizeof(type))) \
+  ((((size_t)ptr) % sizeof(type)) \
+   ? (sizeof(type) - (((size_t)ptr) % sizeof(type))) \
    : 0)
 
 #undef MAX
@@ -190,6 +196,18 @@ struct tnfa_transition {
 #define ASSERT_AT_WB_NEG	128   /* Not a word boundary. */
 #define ASSERT_BACKREF		256   /* A back reference in `backref'. */
 #define ASSERT_LAST		256
+
+/* define R_assert() which can replace assert() */
+
+/* fake definition (important: jsut const char* str is not enough!) */
+extern void Rf_error(const char *str, ...);
+
+#ifdef NDEBUG
+#define R_assert(e) ((void) 0)
+#else
+/* The line below requires an ANSI C preprocessor (stringify operator) */
+#define R_assert(e) ((e) ? (void) 0 : Rf_error("assertion '%s' failed in executing regexp: file '%s', line %d\n", #e, __FILE__, __LINE__))
+#endif /* NDEBUG */
 
 /* Tag directions. */
 typedef enum {

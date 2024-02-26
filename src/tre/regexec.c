@@ -27,7 +27,7 @@ char *alloca ();
 #endif
 #endif /* TRE_USE_ALLOCA */
 
-#include <assert.h>
+// #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef HAVE_WCHAR_H
@@ -45,8 +45,10 @@ char *alloca ();
 #include <limits.h>
 
 #include "tre-internal.h"
+#include "tre.h"
 #include "xmalloc.h"
 
+#define assert(a) R_assert(a)
 
 /* Fills the POSIX.2 regmatch_t array according to the TNFA tag and match
    endpoint values. */
@@ -200,7 +202,7 @@ tre_match(const tre_tnfa_t *tnfa, const void *string, size_t len,
 
 int
 tre_regnexec(const regex_t *preg, const char *str, size_t len,
-	 size_t nmatch, regmatch_t pmatch[], int eflags)
+	     size_t nmatch, regmatch_t pmatch[], int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
   tre_str_type_t type = (TRE_MB_CUR_MAX == 1) ? STR_BYTE : STR_MBS;
@@ -208,23 +210,16 @@ tre_regnexec(const regex_t *preg, const char *str, size_t len,
   return tre_match(tnfa, str, len, type, nmatch, pmatch, eflags);
 }
 
-#ifdef TRE_USE_GNUC_REGEXEC_FPL
 int
 tre_regexec(const regex_t *preg, const char *str,
-	size_t nmatch, regmatch_t pmatch[_Restrict_arr_ _REGEX_NELTS (nmatch)],
-	int eflags)
-#else
-int
-tre_regexec(const regex_t *preg, const char *str,
-	size_t nmatch, regmatch_t pmatch[], int eflags)
-#endif
+	    size_t nmatch, regmatch_t pmatch[], int eflags)
 {
   return tre_regnexec(preg, str, (unsigned)-1, nmatch, pmatch, eflags);
 }
 
 int
 tre_regexecb(const regex_t *preg, const char *str,
-        size_t nmatch, regmatch_t pmatch[], int eflags)
+	     size_t nmatch, regmatch_t pmatch[], int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
 
@@ -233,7 +228,7 @@ tre_regexecb(const regex_t *preg, const char *str,
 
 int
 tre_regnexecb(const regex_t *preg, const char *str, size_t len,
-        size_t nmatch, regmatch_t pmatch[], int eflags)
+	      size_t nmatch, regmatch_t pmatch[], int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
 
@@ -245,7 +240,7 @@ tre_regnexecb(const regex_t *preg, const char *str, size_t len,
 
 int
 tre_regwnexec(const regex_t *preg, const wchar_t *str, size_t len,
-	  size_t nmatch, regmatch_t pmatch[], int eflags)
+	      size_t nmatch, regmatch_t pmatch[], int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
   return tre_match(tnfa, str, len, STR_WIDE, nmatch, pmatch, eflags);
@@ -253,7 +248,7 @@ tre_regwnexec(const regex_t *preg, const wchar_t *str, size_t len,
 
 int
 tre_regwexec(const regex_t *preg, const wchar_t *str,
-	 size_t nmatch, regmatch_t pmatch[], int eflags)
+	     size_t nmatch, regmatch_t pmatch[], int eflags)
 {
   return tre_regwnexec(preg, str, (unsigned)-1, nmatch, pmatch, eflags);
 }
@@ -262,7 +257,7 @@ tre_regwexec(const regex_t *preg, const wchar_t *str,
 
 int
 tre_reguexec(const regex_t *preg, const tre_str_source *str,
-	 size_t nmatch, regmatch_t pmatch[], int eflags)
+	     size_t nmatch, regmatch_t pmatch[], int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
   return tre_match(tnfa, str, (unsigned)-1, STR_USER, nmatch, pmatch, eflags);
@@ -318,7 +313,7 @@ tre_match_approx(const tre_tnfa_t *tnfa, const void *string, size_t len,
 
 int
 tre_reganexec(const regex_t *preg, const char *str, size_t len,
-	  regamatch_t *match, regaparams_t params, int eflags)
+	      regamatch_t *match, regaparams_t params, int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
   tre_str_type_t type = (TRE_MB_CUR_MAX == 1) ? STR_BYTE : STR_MBS;
@@ -328,26 +323,26 @@ tre_reganexec(const regex_t *preg, const char *str, size_t len,
 
 int
 tre_regaexec(const regex_t *preg, const char *str,
-	 regamatch_t *match, regaparams_t params, int eflags)
+	     regamatch_t *match, regaparams_t params, int eflags)
 {
   return tre_reganexec(preg, str, (unsigned)-1, match, params, eflags);
 }
 
 int
 tre_regaexecb(const regex_t *preg, const char *str,
-          regamatch_t *match, regaparams_t params, int eflags)
+	  regamatch_t *match, regaparams_t params, int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
 
-  return tre_match_approx(tnfa, str, (unsigned)-1, STR_BYTE,
-                          match, params, eflags);
+  return tre_match_approx(tnfa, str, (unsigned)-1, STR_BYTE, 
+			  match, params, eflags);
 }
 
 #ifdef TRE_WCHAR
 
 int
 tre_regawnexec(const regex_t *preg, const wchar_t *str, size_t len,
-	   regamatch_t *match, regaparams_t params, int eflags)
+	       regamatch_t *match, regaparams_t params, int eflags)
 {
   tre_tnfa_t *tnfa = (void *)preg->TRE_REGEX_T_FIELD;
   return tre_match_approx(tnfa, str, len, STR_WIDE,

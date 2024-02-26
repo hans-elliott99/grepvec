@@ -44,7 +44,7 @@ char *alloca ();
 #endif
 #endif /* TRE_USE_ALLOCA */
 
-#include <assert.h>
+// #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef HAVE_WCHAR_H
@@ -62,9 +62,10 @@ char *alloca ();
 
 #include "tre-internal.h"
 #include "tre-match-utils.h"
+#include "tre.h"
 #include "xmalloc.h"
 
-
+#define assert(a) R_assert(a)
 
 typedef struct {
   tre_tnfa_transition_t *state;
@@ -220,7 +221,7 @@ tre_tnfa_run_parallel(const tre_tnfa_t *tnfa, const void *string, int len,
       if (str_byte >= orig_str + 1)
 	prev_c = (unsigned char)*(str_byte - 1);
       next_c = (unsigned char)*str_byte;
-      pos = str_byte - orig_str;
+      pos = (int)(str_byte - orig_str);
       if (len < 0 || pos < len)
 	str_byte++;
     }
@@ -319,7 +320,7 @@ tre_tnfa_run_parallel(const tre_tnfa_t *tnfa, const void *string, int len,
       else
 	{
 	  if (num_tags == 0 || reach_next_i == reach_next)
-	    /* We have found a match. */
+	    /* We have found a match. */
 	    break;
 	}
 
