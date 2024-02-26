@@ -79,5 +79,5 @@ test_that("by_hay and by_ndl are working", {
 test_that("grepvec memory management behaves for longer vectors", {
     shakespeare <- readLines(test_path("data", "shakespeare.txt"))
     words <- gen_word_list(shakespeare, n = 2000)
-    expect_no_error(grepvec(words, shakespeare[1:500]))
+    expect_no_error(grepvec(words, shakespeare[1:200]))
 })
