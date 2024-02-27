@@ -22,5 +22,10 @@ Useful links:
 \author{
 \strong{Maintainer}: Hans Elliott \email{hanselliott61@gmail.com}
 
+Other contributors:
+\itemize{
+  \item Ville Laurikari (Author of the TRE library) [contributor, copyright holder]
+}
+
 }
 \keyword{internal}

@@ -1,13 +1,16 @@
 Package: grepvec
 Title: Search for a Vector of Patterns in a Vector of Strings
 Version: 1.0.0.0000
-Authors@R: 
+Authors@R: c( 
     person("Hans", "Elliott", , "hanselliott61@gmail.com",
-           role = c("aut", "cre")
-           )
+           role = c("aut", "cre")),
+    person("Ville Laurikari", role = c("ctb", "cph"),
+           comment = "Author of the TRE library")
+    )
 Description: Search for matches between a vector of patterns and a vector of strings.
-    `grepvec` is similair to `base::grep` but has some different features. In particular,
-    it can be used to search efficiently for multiple patterns in a vector of strings. 
+    grepvec() is similair to base::grep() but it can search for multiple patterns across
+    its input instead of just one. The patterns can be regular expressions or fixed
+    strings.  
 License: MIT + file LICENSE
 BugReports: https://github.com/hans-elliott99/grepvec/issues
 Encoding: UTF-8

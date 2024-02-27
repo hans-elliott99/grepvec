@@ -1,4 +1,4 @@
-#' grepvec: Search a vector of strings for matches in a vector of patterns.
+#' Search for matches between a vector of patterns and a vector of strings.
 #'
 #' grepvec searches for needles in haystacks. Needles are one or more
 #' regular expression or fixed strings, and haystacks are one or more strings to

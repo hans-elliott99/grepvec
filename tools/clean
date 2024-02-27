@@ -3,3 +3,6 @@ rm -rf src/*.o
 rm -rf src/*.so
 
 rm -rf src/tre/*.o
+
+rm -rf grepvec_1.*.tar.gz
+rm -rf grepvec.Rcheck

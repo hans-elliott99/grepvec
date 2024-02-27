@@ -2,7 +2,7 @@
 % Please edit documentation in R/grepvec.R
 \name{grepvec}
 \alias{grepvec}
-\title{grepvec: Search a vector of strings for matches in a vector of patterns.}
+\title{Search for matches between a vector of patterns and a vector of strings.}
 \usage{
 grepvec(
   needles,

@@ -167,8 +167,9 @@ For example, `grepvec` uses the same regex library
 
 ### PERL
 
-I may add perl-compatible regular expressions through the PCRE library,
-but currently there is no `perl` option in `grepvec`.
+I may add perl-compatible regular expressions through the [PCRE
+library](https://www.pcre.org/original/doc/html/index.html), but
+currently there is no `perl` option in `grepvec`.
 
 ### Missing values
 
@@ -252,8 +253,8 @@ length(c(NA, NA, 3))
 For now (/out of laziness/out of desire for speed), when strings are
 compared by `grepvec`, they are first converted to UTF-8 (if needed).  
 R has support for different encodings, but this complicates things. See
-this statement from the [cpp11 R
-package](https://cran.r-project.org/web/packages/cpp11/vignettes/motivations.html#utf-8-everywhere).
+the statement from the [cpp11 R
+package](https://cran.r-project.org/web/packages/cpp11/vignettes/motivations.html).
 
 ## Development
 
