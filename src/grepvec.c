@@ -20,97 +20,88 @@
 #include "tre/tre.h" // tre_regcomp, tre_regexec, tre_regfree, tre_regerror
 
 
+/*
+    TODO:
+    Can I memset to NA int ?
+    Also, should I not be using any Rf_... functions?
+*/
+
 /* interval at which to check interrupts */
-#define NINTERRUPT 1000
+#define NINTERRUPT 100
 
 
 enum MatchRule {
     RETURNALL   = 0,
-    RETURNFIRST = 1,
-    RETURNLAST  = 2,
+    RETURNFIRST = 1
 };
 
-struct RegexCache {
-    regex_t *rgxarr;
-    int *seen;
-    int flags;
-    int Nn;
-} rgx_cache = {NULL, NULL, 0, 0};
+struct StringCache {
+    const char **arr;
+    int n;
+} string_cache = {NULL, 0};
 
 
-struct FixedCache {
-    const char **ndlarr;
-    int Nn;
-} fixed_cache = {NULL, 0};
+/* use cache so only need to translate chars once */
+void init_cache(struct StringCache *cache, int n) {
+    cache->arr = (const char **)R_Calloc(n, char*);
+    cache->n = n;
+}
 
 
+void update_cache(SEXP ndl, struct StringCache *cache, int idx) {
+    // if (idx >= cache->n || idx < 0) error("index out of bounds");
+    if (cache->arr[idx] != NULL) return;
+    cache->arr[idx] = translateCharUTF8(ndl);
+}
+
+
+/*
+    need to free arr since it is R_Calloc'd, but not the individual strings
+    since they are just pointers to the original R strings *unless* they are
+    R_alloc'd by translateCharUTF8, in which case they are freed by the gc
+    when vmax is reset
+*/
+void free_cache(struct StringCache *cache) {
+    if (cache->n == 0) return;
+    R_Free(cache->arr); // R_Calloc must be R_Free'd
+    cache->n = 0;
+}
 
 /*
     called by on.exit in R wrapper function so that resources are freed even if
     interrupted
-        - note, if function returns void, I get warning:
-        "converting NULL pointer to R NULL", which I think has to do w init.c
-        (but changing the definition to void ... in init.c doesn't fix)
+        - note, if function returns void, I get warning at R level:
+        "converting NULL pointer to R NULL"
+        (changing the definition to void ... in init.c too doesn't fix this)
 */
-void free_regex_cache(struct RegexCache *cache);
-void free_fixed_cache(struct FixedCache *cache);
-
 SEXP on_exit_grepvec_(void) {
-    free_regex_cache(&rgx_cache);
-    free_fixed_cache(&fixed_cache);
+    free_cache(&string_cache);
     return R_NilValue;
 }
+
 
 /*
     ////////////////////////////// REGEX GREPVEC //////////////////////////////
 */
 
-/* initialize regex cache */
-void init_regex_cache(struct RegexCache *cache, int Nn, int ignorecase) {
-    cache->rgxarr = (regex_t *)R_alloc(Nn, sizeof(regex_t));
-    cache->seen = (int *)R_alloc(Nn, sizeof(int));
-    memset(cache->seen, 0, Nn * sizeof(int));
-    cache->flags = REG_EXTENDED|REG_NOSUB;
-    if (ignorecase) cache->flags |= REG_ICASE;
-    cache->Nn = Nn;
-}
-
-/* free resources used by cache */
-void free_regex_cache(struct RegexCache *cache) {
-    if (cache->Nn == 0) return;
-    for (int j=0; j < cache->Nn; j++) {
-        if (cache->seen[j] == 1) {
-            tre_regfree(&cache->rgxarr[j]);
-        }
-    }
-    cache->Nn = 0;
-}
-
-/* compile regex for pattern j if not already done, and if valid regex */
-int check_regex_cache(SEXP *ndl, struct RegexCache *cache, int idx) {
+/* compile regex for pattern j if valid regex */
+int init_regex(SEXP ndl, regex_t *rgx_empty, int flags) {
     char errbuff[1001];
-    if (cache->seen[idx] == 1)  // regex is already compiled
-        return 1;
-    if (cache->seen[idx] == -1) // regex should be skipped
-        return 0;
-    // else, needle hasn't been seen yet
     const void *vmax = vmaxget();
-    const char *ndl_str = Rf_translateCharUTF8(*ndl);
-    int reti = tre_regcompb(&cache->rgxarr[idx], ndl_str, cache->flags);
-    vmaxset(vmax); // rm space allocated by Rf_translateCharUTF8
+    const char *ndl_str = translateCharUTF8(ndl);
+    int reti = tre_regcompb(rgx_empty, ndl_str, flags);
+    vmaxset(vmax); // rm space allocated by translateCharUTF8
     if (reti != 0) {
-        tre_regerror(reti, &cache->rgxarr[idx], errbuff, sizeof(errbuff));
-        warning("TRE pattern compilation error: %s", errbuff);
-        cache->seen[idx] = -1;
-        return 0;
+        tre_regerror(reti, rgx_empty, errbuff, sizeof(errbuff));
+        warning("invalid regular expression '%s': %s", ndl_str, errbuff);
+        return 1;
     }
-    cache->seen[idx] = 1;
-    return 1;
+    return 0;
 }
 
 
 /* test if regex finds a match in the string */
-int matchregex(const char **str, regex_t *rgx) {
+int strrgx(const char **str, regex_t *rgx) {
     char errbuff[1001];
     int reti = tre_regexecb(rgx, *str, 0, NULL, 0);
     if (reti == 0)
@@ -123,145 +114,78 @@ int matchregex(const char **str, regex_t *rgx) {
 }
 
 
-SEXP grepvec_regex_(SEXP needles,
-                    SEXP haystck,
-                    SEXP matchrule,
-                    SEXP ignorecase) {
-    int Nh = length(haystck);
-    int Nn = length(needles);
-    int mrule = INTEGER(matchrule)[0];
-    // inital length of match vector for each hay
-    int Nm = (mrule != RETURNALL) ? 1 : Nn;
 
-    // result vector - list of integer vectors
-    SEXP matches = PROTECT(allocVector(VECSXP, Nh));
+SEXP grepvec_(SEXP needles,
+              SEXP haystck,
+              SEXP fixed,
+              SEXP matchrule,
+              SEXP ignorecase,
+              SEXP keepdim) {
+    int Nn = LENGTH(needles);
+    int Nh = LENGTH(haystck);
+    int fx = asInteger(fixed);
+    int mrule = asInteger(matchrule);
+    int keep = asInteger(keepdim);
+    /*initial length of match vector for each needle*/
+    int Nm = (!keep && mrule != RETURNALL) ? 1 : Nh;
 
-    int i, j, nmatch, anymatch;
-    init_regex_cache(&rgx_cache, Nn, Rf_asLogical(ignorecase));
+    /*result vector - list of integer vectors*/
+    SEXP output = PROTECT(allocVector(VECSXP, Nn));
+
+    int i, j, nmatch, skip;
+    int rgx_flags = REG_EXTENDED|REG_NOSUB;
+    if (asInteger(ignorecase)) rgx_flags |= REG_ICASE;
+    regex_t rgx;
+    char *ndl_str;
     void *vmax_outer = NULL;
+    init_cache(&string_cache, Nh);
+    SEXP indices;
     /*
-        iterate and compare string i with compiled regex j
+        iterate and compare compiled regex j with string i
     */
-    for (i=0; i < Nh; i++) {
-        if ((i + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
-        if (STRING_ELT(haystck, i) == NA_STRING) {
-            SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
+    for (j=0; j < Nn; ++j) {
+        if ((j + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
+        skip = (fx) ? 0 : init_regex(STRING_ELT(needles, j), &rgx, rgx_flags);
+        if (STRING_ELT(needles, j) == NA_STRING || skip) {
+            SET_VECTOR_ELT(output, j, allocVector(INTSXP, 0));
             continue;
         }
-        vmax_outer = vmaxget();
-        const char *hay = Rf_translateCharUTF8(STRING_ELT(haystck, i));
-        SEXP mtchs_i = PROTECT(allocVector(INTSXP, Nm));
 
-        nmatch = 0;   // num matches for string i
-        anymatch = 0; // true if any match for string i
-        for (j=0; j < Nn; j++) {
-            SEXP ndl = STRING_ELT(needles, j);
-            if (ndl == NA_STRING) {
-                SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
+        indices = PROTECT(allocVector(INTSXP, Nm));
+        if (fx) {
+            vmax_outer = vmaxget();
+            ndl_str = (char *)translateCharUTF8(STRING_ELT(needles, j));
+        }
+
+        nmatch = 0;   // num matches for pattern j
+        for (i=0; i < Nh; ++i) {
+            if (STRING_ELT(haystck, i) == NA_STRING) {
                 continue;
             }
-            if (check_regex_cache(&ndl, &rgx_cache, j) &&
-                    matchregex(&hay, &rgx_cache.rgxarr[j]))
-                {
-                    anymatch = 1;
-                    INTEGER(mtchs_i)[nmatch] = j + 1; // R's idx for current ndl
-                    if (mrule == RETURNFIRST) break;
-                    if (mrule == RETURNALL) nmatch++;
-                }
-        }
-        vmaxset(vmax_outer); // rm space allocated for hay
-        // rm extra space allocated to match vec
-        if (anymatch && mrule != RETURNALL) nmatch = 1;
-        SETLENGTH(mtchs_i, nmatch);
-        SET_VECTOR_ELT(matches, i, mtchs_i);
-        UNPROTECT(1); // mtchs_i
-    }
-
-    UNPROTECT(1); // matches
-    return matches;
-}
-
-
-/*
-    ////////////////////////////// FIXED GREPVEC //////////////////////////////
-*/
-
-/* use cache so only need to translate chars once */
-void init_fixed_cache(struct FixedCache *cache, int Nn) {
-    cache->ndlarr = (const char **)R_Calloc(Nn, char*);
-    cache->Nn = Nn;
-}
-
-/*
-    need to free ndlarr since it is R_Calloc'd, but not the individual strings
-    since they are just pointers to the original R strings *unless* they are
-    R_alloc'd by Rf_translateCharUTF8, in which case they are freed by the gc
-    when the vmax resets
-*/
-void free_fixed_cache(struct FixedCache *cache) {
-    if (cache->Nn == 0) return;
-    R_Free(cache->ndlarr); //R_Calloc must be R_Free'd
-    cache->Nn = 0;
-}
-
-void update_fixed_cache(SEXP *ndl, struct FixedCache *cache, int idx) {
-    if (cache->ndlarr[idx] != NULL) return;
-    cache->ndlarr[idx] = Rf_translateCharUTF8(*ndl);
-}
-
-
-SEXP grepvec_fixed_(SEXP needles,
-                    SEXP haystck,
-                    SEXP matchrule,
-                    SEXP ignorecase) {
-    int Nh = length(haystck);
-    int Nn = length(needles);
-    int mrule = INTEGER(matchrule)[0];
-    // inital length of match vector for each hay
-    int Nm = (mrule != RETURNALL) ? 1 : Nn;
-
-    // result vector - list of integer vectors
-    SEXP matches = PROTECT(allocVector(VECSXP, Nh));
-    init_fixed_cache(&fixed_cache, Nn);
-    int i, j, nmatch, anymatch;
-    void *vmax_outer = NULL;
-    /*
-        iterate and look for exact sub-string j in string i
-    */
-    for (i=0; i < Nh; i++) {
-        R_CheckUserInterrupt();
-        if (STRING_ELT(haystck, i) == NA_STRING) {
-            SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
-            continue;
-        }
-        vmax_outer = vmaxget();
-        const char *hay = Rf_translateCharUTF8(STRING_ELT(haystck, i));
-        SEXP mtchs_i = PROTECT(allocVector(INTSXP, Nm));
-
-        nmatch = 0;   // num matches for string i
-        anymatch = 0; // true if any match for string i
-        for (j=0; j < Nn; j++) {
-            SEXP ndl = STRING_ELT(needles, j);
-            if (ndl == NA_STRING) {
-                SET_VECTOR_ELT(matches, i, allocVector(INTSXP, 0));
-                continue;
-            }
-            update_fixed_cache(&ndl, &fixed_cache, j);
-            if (strstr(hay, fixed_cache.ndlarr[j]) != NULL) {
-                anymatch = 1;
-                INTEGER(mtchs_i)[nmatch] = j + 1; // R's idx for current ndl
+            update_cache(STRING_ELT(haystck, i), &string_cache, i);
+            if (
+                (fx) ? (strstr(string_cache.arr[i], ndl_str) != NULL) :
+                        strrgx(&string_cache.arr[i], &rgx)
+            ){
+                INTEGER(indices)[nmatch] = i + 1; // R's idx for current hay
+                ++nmatch;
                 if (mrule == RETURNFIRST) break;
-                if (mrule == RETURNALL) nmatch++;
             }
         }
-        vmaxset(vmax_outer); // rm mem allocated for hay
+        if (fx)
+            vmaxset(vmax_outer); // rm mem allocated for ndl_str
+        else
+            tre_regfree(&rgx);
+        if (keep) {
+            for (i=nmatch; i < Nh; ++i) INTEGER(indices)[i] = NA_INTEGER;
+            nmatch = Nh;
+        }
         // rm extra space allocated to match vec
-        if (anymatch && mrule != RETURNALL) nmatch = 1;
-        SETLENGTH(mtchs_i, nmatch);
-        SET_VECTOR_ELT(matches, i, mtchs_i);
-        UNPROTECT(1); // mtchs_i
+        SETLENGTH(indices, nmatch);
+        SET_VECTOR_ELT(output, j, indices);
+        UNPROTECT(1); // indices
     }
 
-    UNPROTECT(1); // matches
-    return matches;
+    UNPROTECT(1); // output
+    return output;
 }

@@ -7,7 +7,7 @@
 \usage{
 by_hay(x, value = FALSE, ...)
 
-\method{by_hay}{grepvec}(x, value = FALSE, needles = x$needles, ...)
+\method{by_hay}{grepvec}(x, value = FALSE, needles = x$needles, n_hay = length(x$haystacks), ...)
 }
 \arguments{
 \item{x}{\code{grepvec} object returned from \link{grepvec} when out = "object".}

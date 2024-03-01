@@ -7,13 +7,7 @@
 \usage{
 by_ndl(x, value = FALSE, ...)
 
-\method{by_ndl}{grepvec}(
-  x,
-  value = FALSE,
-  haystacks = x$haystacks,
-  n_ndl = length(x$needles),
-  ...
-)
+\method{by_ndl}{grepvec}(x, value = FALSE, haystacks = x$haystacks, ...)
 }
 \arguments{
 \item{x}{\code{grepvec} object returned from \link{grepvec} when out = "object".}

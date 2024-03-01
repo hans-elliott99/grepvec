@@ -7,7 +7,7 @@
   solutions](#compare-grepvec-with-native-r-solutions)
 - [Encodings](#encodings)
 
-2024-02-26 01:53:29.829552
+2024-03-01 00:30:56.430033
 
 ``` r
 # compiled on:
@@ -29,10 +29,38 @@ set.seed(1614)
 # create some data
 #
 txt <- tryCatch(
-    readRDS("../inst/extdata/shakespeare.rds"),
-    warning = \(e) readRDS("./inst/extdata/shakespeare.rds")
+    readLines("../inst/extdata/shakespeare.txt"),
+    warning = \(e) readLines("./inst/extdata/shakespeare.txt")
 )
+# rm document info
+txt <- txt[min(which(txt == "1609")) : max(which(txt == "THE END"))]
+# so we have pure Shakespeare
+writeLines(c(head(txt, 15), "....", tail(txt, 5)))
+```
 
+    1609
+
+    THE SONNETS
+
+    by William Shakespeare
+
+
+
+    1
+    From fairest creatures we desire increase,
+    That thereby beauty's rose might never die,
+    But as the riper should by time decease,
+    His tender heir might bear his memory:
+    But thou contracted to thine own bright eyes,
+    Feed'st thy light's flame with self-substantial fuel,
+    ....
+    O, all that borrowed motion, seeming owed,
+    Would yet again betray the fore-betrayed,
+    And new pervert a reconciled maid.'
+
+    THE END
+
+``` r
 #
 # get some random words from the txt to use as patterns
 #
@@ -50,6 +78,39 @@ gen_word_list <- function(lines, n = 10) {
 ## Examples
 
 ``` r
+grep("gr(a|e)y", c("grey", "gray"))
+```
+
+    [1] 1 2
+
+``` r
+grepvec("gr(a|e)y", c("grey", "gray"))
+```
+
+    [[1]]
+    [1] 1 2
+
+``` r
+grepvec(c("^a", "\\d"), c("1", "apple"))
+```
+
+    [[1]]
+    [1] 2
+
+    [[2]]
+    [1] 1
+
+``` r
+lapply(c("^a", "\\d"), \(p) grep(p, c("1", "apple")))
+```
+
+    [[1]]
+    [1] 2
+
+    [[2]]
+    [1] 1
+
+``` r
 grepvec(c("one", "possib", "many"),
         c("Some text which might possibly contain one of many keywords",
           "Another string without many words",
@@ -58,25 +119,28 @@ grepvec(c("one", "possib", "many"),
 ```
 
     [[1]]
-    [1] 1 2 3
+    [1] 1 4
 
     [[2]]
-    [1] 3
+    [1] 1 3
 
     [[3]]
-    [1] 2
-
-    [[4]]
-    [1] 1
+    [1] 1 2
 
 ``` r
-grepvec(letters[1:6], c("AbC", 123), ignore_case = TRUE, value = TRUE)
+grepvec(letters[1:4], c("AbC", 123), ignore_case = TRUE, value = TRUE)
 ```
 
     [[1]]
-    [1] "a" "b" "c"
+    [1] "AbC"
 
     [[2]]
+    [1] "AbC"
+
+    [[3]]
+    [1] "AbC"
+
+    [[4]]
     character(0)
 
 ``` r
@@ -93,274 +157,62 @@ grepvec("^fixed$", "fixed", fixed = TRUE)
     [[1]]
     integer(0)
 
-By default `grepvec` returns a list of the needle indexes matching to
-each haystack, but there are other options. For example, we can return a
-grepvec object which stores the results along with the data needed to
-transform the results into other formats.
-
 ``` r
 words <- gen_word_list(txt, n = 2000)
+
 t0 = Sys.time()
-m <- grepvec(words, txt[1:500], matchrule = "all", out = "object")
+m <- grepvec(words, txt[1:500], match = "all")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.3122818 secs
+    Time difference of 0.203398 secs
 
 ``` r
-# show indices of needle matches (default behavior)
-head(by_hay(m))
+# base R version
+t0 = Sys.time()
+m2 <- lapply(words, grep, x = txt[1:500])
+difftime(Sys.time(), t0)
 ```
 
-    [[1]]
-     [1]   71  214  321  454  593 1237 1547 1742 1809 1840 1938
-
-    [[2]]
-     [1]   71  124  185  214  215  250  481  593  690  791  968 1046 1217 1237 1249
-    [16] 1276 1629 1742 1840 1938 1980
-
-    [[3]]
-    [1]   71  214 1237 1547 1572 1742 1809 1840 1938
-
-    [[4]]
-     [1]   53   71  124  170  214  250  297  481  690  968 1152 1200 1221 1237 1243
-    [16] 1351 1438 1742 1757 1776 1840 1938
-
-    [[5]]
-    integer(0)
-
-    [[6]]
-    [1]  214 1572
-
-``` r
-# convert indices to the corresponding strings
-head(setNames(by_hay(m, value = TRUE), m$haystacks))
-```
-
-    $`This is the 100th Etext file presented by Project Gutenberg, and`
-     [1] "he."      "so?"      "by"       "by."      "present." "the"     
-     [7] "and"      "on?"      "go?"      "the"      "the"     
-
-    $`is presented in cooperation with World Library, Inc., from their`
-     [1] "he."      "at"       "on."      "so?"      "from"     "at"      
-     [7] "at."      "present." "in"       "ope"      "in"       "ope"     
-    [13] "with"     "the"      "on."      "on."      "or"       "on?"     
-    [19] "the"      "the"      "with"    
-
-    $`Library of the Future and Shakespeare CDROMS.  Project Gutenberg`
-    [1] "he." "so?" "the" "and" "ear" "on?" "go?" "the" "the"
-
-    $`often releases Etexts that are NOT placed in the Public Domain!!`
-     [1] "that?"    "he."      "at"       "Do"       "so?"      "at"      
-     [7] "place."   "at."      "in"       "in"       "main"     "Domain!!"
-    [13] "place."   "the"      "place"    "often"    "often"    "on?"     
-    [19] "releases" "Do"       "the"      "the"     
-
-    [[5]]
-    character(0)
-
-    $Shakespeare
-    [1] "so?" "ear"
-
-``` r
-# transpose so we can see the haystacks that matched to each needle
-head(setNames(by_ndl(m, value = TRUE), m$needles))
-```
-
-    $dotards.
-    character(0)
-
-    $makes
-    character(0)
-
-    $`Got,`
-    character(0)
-
-    $`earth,`
-    character(0)
-
-    $serve
-    [1] "(Internet, Bitnet, Compuserve, ATTMAIL or MCImail)."      
-    [2] "Internet (72600.2026@compuserve.com); TEL: (212-254-5093)"
-    [3] "How much more praise deserved thy beauty's use,"          
-
-    $ox
-    [1] "P. O. Box  2782" "P.O. Box 2782"  
-
-``` r
-# print object
-print(m)
-```
-
-
-        *** grepvec ***
-    Searched for 2,000 regex patterns across 500 strings (case sensitive). 
-    Returned all matches. First 6 results:
-
-    "This is the 100th Etext file presented by Project Gutenberg, and"
-     [1]   71  214  321  454  593 1237 1547 1742 1809 1840 1938
-    (11 matches)
-
-    "is presented in cooperation with World Library, Inc., from their"
-     [1]   71  124  185  214  215  250  481  593  690  791  968 1046 1217 1237 1249
-    [16] 1276 1629 1742 1840 1938 1980
-    (21 matches)
-
-    "Library of the Future and Shakespeare CDROMS.  Project Gutenberg"
-    [1]   71  214 1237 1547 1572 1742 1809 1840 1938
-    (9 matches)
-
-    "often releases Etexts that are NOT placed in the Public Domain!!"
-     [1]   53   71  124  170  214  250  297  481  690  968 1152 1200 1221 1237 1243
-    [16] 1351 1438 1742 1757 1776 1840 1938
-    (22 matches)
-
-    ""
-    integer(0)
-
-    "Shakespeare"
-    [1]  214 1572
-    (2 matches)
-
-    ... out of 500 haystacks.
-
-``` r
-# lengths == 0 (no matches) or 1 (some match) if matchrule = "first" or "last"
-# note, matchrule = "first" will always be faster than "last" or "all"
-all(lengths(grepvec(words, txt[1:1000], matchrule = "first")) ==
-        lengths(grepvec(words, txt[1:1000], matchrule = "last")))
-```
-
-    [1] TRUE
-
-It is easy to calculate the number of matching patterns across a vector
-of strings. For example, as a column in a data.frame:
-
-``` r
-# get number of matches in pattern vector, e.g., for a data.frame column
-patterns <- gen_word_list(txt, n = 2000)
-ex <- data.frame(txt_col = txt[300:500])
-ex <- transform(ex,
-                n_match_rgx = lengths(grepvec(patterns, txt_col)),
-                n_match_fxd = lengths(grepvec(patterns, txt_col, fixed = TRUE)))
-head(ex)
-```
-
-                                         txt_col n_match_rgx n_match_fxd
-    1     But if thou live remembered not to be,          18           8
-    2 Die single and thine image dies with thee.          18          11
-    3                                                      0           0
-    4                                                      0           0
-    5                                          4           0           0
-    6  Unthrifty loveliness why dost thou spend,          18           6
-
-Returning the grepvec object may be useful if you have a few operations
-to perform:
-
-``` r
-txt_var <- txt[300:500]
-(res <- grepvec(patterns, txt_var, out = "object"))
-```
-
-
-        *** grepvec ***
-    Searched for 2,000 regex patterns across 201 strings (case sensitive). 
-    Returned all matches. First 6 results:
-
-    "But if thou live remembered not to be,"
-     [1]  127  512  535  566  583  729  774  810  813 1074 1099 1305 1346 1554 1681
-    [16] 1693 1792 1812
-    (18 matches)
-
-    "Die single and thine image dies with thee."
-     [1]  139  194  391  644  720  944 1131 1198 1235 1346 1388 1524 1554 1663 1681
-    [16] 1739 1812 1923
-    (18 matches)
-
-    ""
-    integer(0)
-
-    ""
-    integer(0)
-
-    "4"
-    integer(0)
-
-    "Unthrifty loveliness why dost thou spend,"
-     [1]   19  127  225  287  441  535  577  726  729  813  919 1074 1131 1159 1346
-    [16] 1554 1681 1812
-    (18 matches)
-
-    ... out of 201 haystacks.
-
-``` r
-match_ixs <- by_hay(res)
-match_vals <- lapply(by_hay(res, value = TRUE),
-                     \(vec) if (length(vec) == 0) NA else vec)
-
-
-ex <- data.frame(txt_col = txt_var,
-                 n_matches = lengths(match_ixs),
-                 first_match = unlist(lapply(match_vals, `[[`, 1)),
-                 all_matches = vapply(match_vals,
-                                  paste,
-                                  character(1L),
-                                  collapse = ", "))
-head(ex)
-```
-
-                                         txt_col n_matches first_match
-    1     But if thou live remembered not to be,        18       thou?
-    2 Die single and thine image dies with thee.        18        thin
-    3                                                    0        <NA>
-    4                                                    0        <NA>
-    5                                          4         0        <NA>
-    6  Unthrifty loveliness why dost thou spend,        18          do
-                                                                                                all_matches
-    1       thou?, be,, if, now?, no, thou?, be., live, of?, thou?, be,, red, he?, it?, ho?, red, live, in?
-    2 thin, thee., then?, image, image, thin, so?, die, age, he?, with, and, it?, Die, ho?, it, in?, thine.
-    3                                                                                                    NA
-    4                                                                                                    NA
-    5                                                                                                    NA
-    6  do, thou?, love?, end, do, if, love., spend, thou?, of?, love?, thou?, so?, dost, he?, it?, ho?, in?
+    Time difference of 0.4265268 secs
 
 Be careful when unlisting the results, because if no match was found a 0
 length vector is returned.
 
 ``` r
-res <- grepvec(patterns, txt_var, matchrule = "first")
+res <- grepvec(words[1:100], tail(txt, 500), match = "first", value = TRUE)
 head(res)
 ```
 
     [[1]]
-    [1] 127
+    character(0)
 
     [[2]]
-    [1] 139
+    [1] "'\"How mighty then you are, O hear me tell!"
 
     [[3]]
-    integer(0)
+    character(0)
 
     [[4]]
-    integer(0)
+    character(0)
 
     [[5]]
-    integer(0)
+    character(0)
 
     [[6]]
-    [1] 19
+    character(0)
 
 ``` r
 length(res)
 ```
 
-    [1] 201
+    [1] 100
 
 ``` r
 length(unlist(res))
 ```
 
-    [1] 166
+    [1] 27
 
 ``` r
 # helper function for flattening a list of vectors with length 0 or 1
@@ -374,7 +226,147 @@ flatten <- function(x, keepdim = TRUE) {
 length(flatten(res))
 ```
 
-    [1] 201
+    [1] 100
+
+``` r
+pat <- gen_word_list(txt, 2000) # your vector of patterns
+d <- data.frame(txt_col = txt[1001:2000], match = FALSE)
+
+# example - get rows that match any pattern
+d[unique(unlist(grepvec(pat, d$txt_col, match = "first"))), "match"] <- TRUE
+head(subset(d, match == TRUE))
+```
+
+                                             txt_col match
+    1       Even of five hundred courses of the sun,  TRUE
+    2       Show me your image in some antique book,  TRUE
+    3     Since mind at first in character was done.  TRUE
+    4 That I might see what the old world could say,  TRUE
+    5         To this composed wonder of your frame,  TRUE
+    6 Whether we are mended, or whether better they,  TRUE
+
+``` r
+head(subset(d, match == FALSE))
+```
+
+                                       txt_col match
+    10                                         FALSE
+    11                                         FALSE
+    12                                      60 FALSE
+    27                                         FALSE
+    28                                         FALSE
+    41 To play the watchman ever for thy sake. FALSE
+
+``` r
+# example - create columns based on matches
+keywords <- gen_word_list(d$txt_col, 3)
+cat("searching for patterns:", paste0(keywords, collapse = ", "), "\n")
+```
+
+    searching for patterns: my, muse, what 
+
+``` r
+d[, keywords] <- 0
+ixs <- grepvec(keywords, d$txt_col, match = "first")
+d[unlist(ixs), keywords] <- 1
+## see some results
+d[c(1:2, unlist(ixs)), ]
+```
+
+                                               txt_col match my muse what
+    1         Even of five hundred courses of the sun,  TRUE  0    0    0
+    2         Show me your image in some antique book,  TRUE  0    0    0
+    25  And yet to times in hope, my verse shall stand  TRUE  1    1    1
+    319        So oft have I invoked thee for my muse, FALSE  1    1    1
+    4   That I might see what the old world could say,  TRUE  1    1    1
+
+``` r
+# example - getting the last match is as quick and easy as getting the first
+grepvec(pat[1:2], txt, match = "first")
+```
+
+    [[1]]
+    [1] 226
+
+    [[2]]
+    [1] 7565
+
+``` r
+grepvec(pat[1:2], rev(txt), match = "first")
+```
+
+    [[1]]
+    [1] 417
+
+    [[2]]
+    [1] 2841
+
+``` r
+# example - keep dimensions to convert to a data.frame
+x <- do.call(cbind.data.frame,
+             grepvec(letters, txt, keepdim = TRUE, names = TRUE))
+## number of occurrences in all of shakespeare
+nocc <- apply(x, MARGIN = 2, FUN = \(y) sum(!is.na(y)))
+sort(nocc, decreasing = TRUE)
+```
+
+         e      t      o      a      n      r      h      s      i      d      l 
+    106410 100988 100003  98070  95266  94498  92847  92196  90806  76956  73853 
+         u      m      y      w      f      c      g      b      p      v      k 
+     71277  63577  59114  52125  49438  48912  44108  37598  36110  29234  25544 
+         x      j      q      z 
+      4542   2618   2334   1015 
+
+``` r
+# capital letters?
+x <- do.call(cbind.data.frame,
+             grepvec(LETTERS, txt, keepdim = TRUE, names = TRUE))
+## number of occurrences in all of shakespeare
+nocc <- apply(x, MARGIN = 2, FUN = \(y) sum(!is.na(y)))
+sort(nocc, decreasing = TRUE)
+```
+
+        I     A     T     S     E     O     N     R     L     C     H     W     B 
+    38331 33075 31892 23619 23436 21914 19914 18834 17777 16525 15738 15236 13175 
+        M     D     U     P     G     F     Y     K     V     J     Q     X     Z 
+    13034 11859 11259 10283 10099  9505  7941  5914  3481  2009  1168   595   532 
+
+``` r
+# example - if you are a data.table user, functions as.data.table and setDT make
+# it easy to convert a list of equal length vectors into a table 
+if (require("data.table"))
+    print(data.table::setDT(grepvec(c("a", "z"), txt,
+                                    keepdim = TRUE, names = TRUE, value = TRUE)))
+```
+
+    Loading required package: data.table
+
+                                                      a
+                                                 <char>
+         1:                      by William Shakespeare
+         2:  From fairest creatures we desire increase,
+         3: That thereby beauty's rose might never die,
+         4:    But as the riper should by time decease,
+         5:      His tender heir might bear his memory:
+        ---                                            
+    124190:                                        <NA>
+    124191:                                        <NA>
+    124192:                                        <NA>
+    124193:                                        <NA>
+    124194:                                        <NA>
+                                                             z
+                                                        <char>
+         1:          Thy youth's proud livery so gazed on now,
+         2:         The lovely gaze where every eye doth dwell
+         3:            Gilding the object whereupon it gazeth,
+         4: Which steals men's eyes and women's souls amazeth.
+         5:      That hath his windows glazed with thine eyes:
+        ---                                                   
+    124190:                                               <NA>
+    124191:                                               <NA>
+    124192:                                               <NA>
+    124193:                                               <NA>
+    124194:                                               <NA>
 
 Invalid regex patterns:
 
@@ -383,17 +375,20 @@ Invalid regex patterns:
 grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ```
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): TRE
-    pattern compilation error: Missing ']'
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"):
+    Invalid regular expression '[bad': Missing ']'
 
-    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"): TRE
-    pattern compilation error: Missing ')'
+    Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"):
+    Invalid regular expression '(regex': Missing ')'
 
     [[1]]
     integer(0)
 
+    [[2]]
+    integer(0)
+
 ``` r
-# grep is similair but also errors out
+# grep is similair but throws a warning and errors out
 tryCatch(
     grep("[bad", "those are bad regex patterns"),
     error = \(e) { cat("grep error message:\n"); conditionMessage(e) }
@@ -411,128 +406,88 @@ tryCatch(
 
 ``` r
 # test grepvec on some bigger vectors
-hay <- c(txt, txt, txt, txt)
+hay <- c(txt, txt)
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")
 ```
 
-    N Hay = 497,824 | N Needle = 2,000 
+    N Hay = 248,388 | N Needle = 2,000 
 
 ``` r
 t0 <- Sys.time()
 suppressWarnings({
-    x <- grepvec(ndl, hay, fixed = FALSE, matchrule = "all")
+    x <- grepvec(ndl, hay, fixed = FALSE, match = "all")
 })
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 3.610892 mins
+    Time difference of 1.875297 mins
 
 ``` r
-# returning only the first match is faster
+#
+# returning only the first match is much faster
+#
 t0 <- Sys.time()
 suppressWarnings({
-    x <- grepvec(ndl, hay, fixed = FALSE, matchrule = "first")
+    x <- grepvec(ndl, hay, fixed = FALSE, match = "first")
 })
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 18.14899 secs
+    Time difference of 6.349597 secs
 
 ``` r
-# large Ns - causes stack overflow on my sys w/out dynammic alloc, and cause
-# PROTECTion stack overflow if list elemements are not unprotected as soon as
-# added to list (in grepvec.c)
-longndls <- gen_word_list(txt, length(txt))
-# "banana" is not in shakespeare,
-#  so put it at some indices so we can verify that the results are correct
-all(lengths(grepvec("banana", txt)) == 0)
+#
+# fixed searches are much much faster
+# since regexes don't need be compiled or executed
+#
+t0 <- Sys.time()
+suppressWarnings({
+    x <- grepvec(ndl, hay, fixed = TRUE, match = "all")
+})
+difftime(Sys.time(), t0)
 ```
 
-    [1] TRUE
-
-``` r
-longndls[1] <- "banana" # so now it's a pattern to search for
-banan_idx <- c((1:100)^2, length(txt))
-somehay <- txt
-somehay[banan_idx] <- "banana"
-
-# basically a >15 billion element matrix
-cat("N Hay =", format(length(somehay), big.mark = ","),
-    "| N Needle =", format(length(longndls), big.mark = ","), "\n")
-```
-
-    N Hay = 124,456 | N Needle = 124,456 
+    Time difference of 11.17892 secs
 
 ``` r
 t0 <- Sys.time()
 suppressWarnings({
-    x <- grepvec(longndls, somehay, matchrule = "first", out = "obj", fixed = FALSE)
+    x <- grepvec(ndl, hay, fixed = TRUE, match = "first")
 })
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 23.3785 secs
-
-``` r
-# the only strings that matched to needle 1 should be those at 'banan_idx'
-xix <- by_hay(x)
-all(which(unlist(xix) == 1) == banan_idx)
-```
-
-    [1] TRUE
-
-``` r
-unique(by_hay(x, value = TRUE)[which(flatten(xix) == 1)])
-```
-
-    [[1]]
-    [1] "banana"
+    Time difference of 0.6581843 secs
 
 ## Compare grepvec with native R solutions
 
 Suggestions wanted.
 
 ``` r
-#
-# implement as if matchrule = last, and use try because grep errors if bad regex
-#
-
 loop_grep <- function(needles, haystacks) {
     x <- vector(mode = "list", length = length(haystacks))
     for (i in seq_along(needles)) {
-        try({
-            matchinds <- grep(needles[i], haystacks)
-            x[matchinds] <- i #lapply(x[matchinds], \(vec) c(vec, i))
-        }, silent = TRUE)
+        x[[i]] <- grep(needles[i], haystacks)
     }
-    return(x)
+    x
 }
 
 lapply_grep <- function(needles, haystacks) {
-    x <- vector(mode = "list", length = length(haystacks))
-    .fn <- \(ndl) {
-        try({
-            matchinds <- grep(ndl, haystacks)
-            return(matchinds)
-        }, silent = TRUE)
-        return(NULL)
-    }
-    ndlmtches <- lapply(needles, .fn)
-    for (i in seq_along(needles)) {
-        matchinds <- ndlmtches[[i]]
-        x[matchinds] <- i #lapply(x[matchinds], \(vec) c(vec, i))
-    }
-    return(x)
+    lapply(needles, grep, x = haystacks)
+}
+
+lapply_grep_lambda <- function(needles, haystacks) {
+    lapply(needles, \(p) grep(p, haystacks))
 }
 
 # verify same results
-shortndls <- words[1:100]
-shorttxt <- txt#[1:500]
+shortndls <- words[1:100] 
+shorttxt <- txt[1:10000]
 x_loop <- loop_grep(shortndls, shorttxt)
 x_lapply <- lapply_grep(shortndls, shorttxt)
-x_grepvec <- grepvec(shortndls, shorttxt, matchrule = "last")
+x_grepvec <- grepvec(shortndls, shorttxt)
 all(unlist(x_loop) == unlist(x_lapply))
 ```
 
@@ -540,7 +495,7 @@ all(unlist(x_loop) == unlist(x_lapply))
 
 ``` r
 # grepvec returns empty vec if no results, others return NULL. make equal
-x_grepvec <- lapply(x_grepvec, \(vec) if (length(vec) == 0) NULL else vec)
+# x_grepvec <- lapply(x_grepvec, \(vec) if (length(vec) == 0) NULL else vec)
 all(unlist(x_lapply) == unlist(x_grepvec))
 ```
 
@@ -549,23 +504,26 @@ all(unlist(x_lapply) == unlist(x_grepvec))
 ``` r
 microbenchmark(loop_grep(shortndls, shorttxt),
                lapply_grep(shortndls, shorttxt),
-               grepvec(shortndls, shorttxt, matchrule = "last"),
+               lapply_grep_lambda(shortndls, shorttxt),
+               grepvec(shortndls, shorttxt, match = "all"),
                times = 10)
 ```
 
-    Unit: seconds
-                                                 expr      min       lq     mean
-                       loop_grep(shortndls, shorttxt) 5.968324 6.110611 6.251295
-                     lapply_grep(shortndls, shorttxt) 6.062536 6.145169 6.299458
-     grepvec(shortndls, shorttxt, matchrule = "last") 2.685116 2.708908 2.790533
+    Unit: milliseconds
+                                            expr      min       lq     mean
+                  loop_grep(shortndls, shorttxt) 439.1961 452.5851 465.4103
+                lapply_grep(shortndls, shorttxt) 437.0055 442.3822 455.2482
+         lapply_grep_lambda(shortndls, shorttxt) 442.2195 444.5270 461.7520
+     grepvec(shortndls, shorttxt, match = "all") 204.5672 205.9728 212.3090
        median       uq      max neval
-     6.220951 6.401024 6.608073    10
-     6.312261 6.373216 6.702655    10
-     2.755133 2.847802 3.013309    10
+     459.1160 469.2270 541.6155    10
+     446.8550 467.8454 487.3339    10
+     455.4422 479.9144 491.6354    10
+     209.9515 214.6499 230.3987    10
 
 Some comparisons with `base::grep`:
 
-`grep` is usually faster for simple use cases, when searching for a
+`grep` is typically faster for simple use cases, when searching for a
 single pattern in a single string, which makes sense considering
 `grepvec` has some extra overhead. The difference in performance is
 variable and depends on the regular expression.
@@ -575,8 +533,8 @@ bunch of strings (see the last example), but this can vary quite a bit
 based on the regular expression.
 
 `grepvec` will be most useful when searching for a vector of patterns in
-a vector of strings. As demonstrated above, native R solutions aren’t as
-fast.
+a vector of strings. As demonstrated above, native R solutions aren’t
+quite as fast.
 
 ``` r
 microbenchmark(
@@ -587,11 +545,11 @@ microbenchmark(
 
     Unit: microseconds
                                                                    expr  min    lq
-        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.7 14.55
-     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 24.6 25.40
-       mean median    uq  max neval
-     16.451  15.40 16.15 47.4   100
-     28.754  26.95 27.65 79.8   100
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 14.1 14.40
+     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 20.6 21.05
+      mean median   uq   max neval
+     15.45  15.35 15.6  44.9   100
+     23.23  22.60 23.1 106.7   100
 
 ``` r
 microbenchmark(
@@ -602,11 +560,11 @@ microbenchmark(
 
     Unit: microseconds
                                                 expr  min   lq   mean median   uq
-        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.2  4.5  5.517    5.3  5.6
-     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 19.9 20.7 22.833   21.3 21.7
-       max neval
-      20.7   100
-     109.9   100
+        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.1  4.5  5.379   5.10  5.3
+     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 15.2 15.6 17.282  16.35 16.8
+      max neval
+     40.4   100
+     69.4   100
 
 ``` r
 microbenchmark(
@@ -620,8 +578,8 @@ microbenchmark(
         grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
      grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
       min   lq   mean median   uq  max neval
-      5.5  5.8  7.047    6.7  7.0 27.9   100
-     20.5 21.2 22.729   21.8 22.3 64.1   100
+      5.4  5.8  6.663    6.4  6.7 38.7   100
+     15.6 16.1 17.406   16.7 17.0 68.1   100
 
 ``` r
 p <- gen_word_list(txt, n = 1)
@@ -633,14 +591,14 @@ microbenchmark(
 
     Unit: milliseconds
                 expr     min       lq     mean   median       uq     max neval
-        grep(p, txt) 52.4364 54.55835 56.26534 55.35220 56.30320 67.8897   100
-     grepvec(p, txt) 21.7852 22.85490 25.54108 23.45775 24.11895 94.0804   100
+        grep(p, txt) 50.2015 55.01860 57.15994 56.10885 58.28575 72.4797   100
+     grepvec(p, txt) 17.6213 18.74885 19.23802 19.05900 19.54935 23.1670   100
 
 ``` r
 cat("regex:", p, "\n")
 ```
 
-    regex: That 
+    regex: The 
 
 ## Encodings
 
@@ -678,16 +636,7 @@ grepvec("prem", latin1)
 ```
 
     [[1]]
-    [1] 1
-
-    [[2]]
-    [1] 1
-
-    [[3]]
-    integer(0)
-
-    [[4]]
-    integer(0)
+    [1] 1 2
 
 ``` r
 grepvec("xe8re", latin1[1])
@@ -753,3 +702,17 @@ grepvec("première", latin1[1])
 
     [[1]]
     integer(0)
+
+``` r
+try(grep(latin1[1], latin1[1], fixed = TRUE))
+```
+
+    Error in grep(latin1[1], latin1[1], fixed = TRUE) : 
+      regular expression is invalid in this locale
+
+``` r
+grepvec(latin1[1], latin1[1], fixed = TRUE)
+```
+
+    [[1]]
+    [1] 1
