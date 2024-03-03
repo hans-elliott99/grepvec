@@ -7,7 +7,9 @@
   solutions](#compare-grepvec-with-native-r-solutions)
 - [Encodings](#encodings)
 
-2024-03-01 00:30:56.430033
+2024-03-02 10:54:04.726051
+
+Note: use xlength instead of length
 
 ``` r
 # compiled on:
@@ -165,7 +167,7 @@ m <- grepvec(words, txt[1:500], match = "all")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.203398 secs
+    Time difference of 0.2034526 secs
 
 ``` r
 # base R version
@@ -174,7 +176,7 @@ m2 <- lapply(words, grep, x = txt[1:500])
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.4265268 secs
+    Time difference of 0.4147382 secs
 
 Be careful when unlisting the results, because if no match was found a 0
 length vector is returned.
@@ -267,8 +269,14 @@ cat("searching for patterns:", paste0(keywords, collapse = ", "), "\n")
 
 ``` r
 d[, keywords] <- 0
-ixs <- grepvec(keywords, d$txt_col, match = "first")
-d[unlist(ixs), keywords] <- 1
+(ixs <- unlist(grepvec(keywords, d$txt_col, match = "first")))
+```
+
+    [1]  25 319   4
+
+``` r
+for (i in seq_along(keywords))
+    d[ixs[i], keywords[i]] <- 1
 ## see some results
 d[c(1:2, unlist(ixs)), ]
 ```
@@ -276,9 +284,9 @@ d[c(1:2, unlist(ixs)), ]
                                                txt_col match my muse what
     1         Even of five hundred courses of the sun,  TRUE  0    0    0
     2         Show me your image in some antique book,  TRUE  0    0    0
-    25  And yet to times in hope, my verse shall stand  TRUE  1    1    1
-    319        So oft have I invoked thee for my muse, FALSE  1    1    1
-    4   That I might see what the old world could say,  TRUE  1    1    1
+    25  And yet to times in hope, my verse shall stand  TRUE  1    0    0
+    319        So oft have I invoked thee for my muse, FALSE  0    1    0
+    4   That I might see what the old world could say,  TRUE  0    0    1
 
 ``` r
 # example - getting the last match is as quick and easy as getting the first
@@ -376,10 +384,10 @@ grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ```
 
     Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"):
-    Invalid regular expression '[bad': Missing ']'
+    invalid regular expression '[bad': Missing ']'
 
     Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"):
-    Invalid regular expression '(regex': Missing ')'
+    invalid regular expression '(regex': Missing ')'
 
     [[1]]
     integer(0)
@@ -422,7 +430,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 1.875297 mins
+    Time difference of 1.792635 mins
 
 ``` r
 #
@@ -435,7 +443,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 6.349597 secs
+    Time difference of 6.291326 secs
 
 ``` r
 #
@@ -449,7 +457,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 11.17892 secs
+    Time difference of 10.91032 secs
 
 ``` r
 t0 <- Sys.time()
@@ -459,7 +467,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.6581843 secs
+    Time difference of 0.6527908 secs
 
 ## Compare grepvec with native R solutions
 
@@ -511,22 +519,22 @@ microbenchmark(loop_grep(shortndls, shorttxt),
 
     Unit: milliseconds
                                             expr      min       lq     mean
-                  loop_grep(shortndls, shorttxt) 439.1961 452.5851 465.4103
-                lapply_grep(shortndls, shorttxt) 437.0055 442.3822 455.2482
-         lapply_grep_lambda(shortndls, shorttxt) 442.2195 444.5270 461.7520
-     grepvec(shortndls, shorttxt, match = "all") 204.5672 205.9728 212.3090
+                  loop_grep(shortndls, shorttxt) 454.2725 457.8696 473.8369
+                lapply_grep(shortndls, shorttxt) 445.0287 445.9500 477.6572
+         lapply_grep_lambda(shortndls, shorttxt) 452.1758 461.0080 490.6828
+     grepvec(shortndls, shorttxt, match = "all") 213.5278 214.7112 229.0303
        median       uq      max neval
-     459.1160 469.2270 541.6155    10
-     446.8550 467.8454 487.3339    10
-     455.4422 479.9144 491.6354    10
-     209.9515 214.6499 230.3987    10
+     463.9407 469.8303 550.2628    10
+     460.7358 483.2868 563.8530    10
+     475.5170 535.7120 553.8740    10
+     221.9986 229.7894 267.5283    10
 
 Some comparisons with `base::grep`:
 
-`grep` is typically faster for simple use cases, when searching for a
-single pattern in a single string, which makes sense considering
-`grepvec` has some extra overhead. The difference in performance is
-variable and depends on the regular expression.
+`grep` is typically faster when searching for a single pattern in a
+single string, which makes sense considering `grepvec` has some extra
+overhead. The difference in performance is variable and depends on the
+regular expression.
 
 `grepvec` may become slightly faster when comparing a pattern with a
 bunch of strings (see the last example), but this can vary quite a bit
@@ -544,12 +552,12 @@ microbenchmark(
 ```
 
     Unit: microseconds
-                                                                   expr  min    lq
-        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 14.1 14.40
-     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 20.6 21.05
-      mean median   uq   max neval
-     15.45  15.35 15.6  44.9   100
-     23.23  22.60 23.1 106.7   100
+                                                                   expr  min   lq
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.4 13.8
+     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 19.7 20.9
+       mean median    uq   max neval
+     16.546   14.7 15.80  41.0   100
+     26.412   22.2 25.85 102.7   100
 
 ``` r
 microbenchmark(
@@ -560,11 +568,11 @@ microbenchmark(
 
     Unit: microseconds
                                                 expr  min   lq   mean median   uq
-        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.1  4.5  5.379   5.10  5.3
-     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 15.2 15.6 17.282  16.35 16.8
+        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.1  4.5  5.564    5.2  5.4
+     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 15.6 16.1 17.727   16.6 17.1
       max neval
-     40.4   100
-     69.4   100
+     43.0   100
+     71.9   100
 
 ``` r
 microbenchmark(
@@ -577,9 +585,9 @@ microbenchmark(
                                                                                                     expr
         grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
      grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
-      min   lq   mean median   uq  max neval
-      5.4  5.8  6.663    6.4  6.7 38.7   100
-     15.6 16.1 17.406   16.7 17.0 68.1   100
+      min    lq   mean median    uq  max neval
+      6.4 10.85 12.191  12.00 12.85 44.6   100
+     16.7 30.90 31.897  32.25 33.55 72.0   100
 
 ``` r
 p <- gen_word_list(txt, n = 1)
@@ -590,9 +598,9 @@ microbenchmark(
 ```
 
     Unit: milliseconds
-                expr     min       lq     mean   median       uq     max neval
-        grep(p, txt) 50.2015 55.01860 57.15994 56.10885 58.28575 72.4797   100
-     grepvec(p, txt) 17.6213 18.74885 19.23802 19.05900 19.54935 23.1670   100
+                expr     min       lq     mean   median      uq     max neval
+        grep(p, txt) 53.6124 59.92450 63.77697 62.45925 67.1125 78.1553   100
+     grepvec(p, txt) 18.0961 20.64005 22.50911 21.71730 23.6274 32.9003   100
 
 ``` r
 cat("regex:", p, "\n")

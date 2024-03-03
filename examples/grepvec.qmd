@@ -150,7 +150,7 @@ sort(nocc, decreasing = TRUE)
 
 # example - if you are a data.table user, functions as.data.table and setDT make
 # it easy to convert a list of equal length vectors into a table 
-if (require("data.table"))
+if (require("data.table", quietly = TRUE))
     print(data.table::setDT(grepvec(c("a", "z"), txt,
                                     keepdim = TRUE, names = TRUE, value = TRUE)))
 ```
@@ -297,30 +297,113 @@ cat("regex:", p, "\n")
 
 ## Encodings
 
+In R, characters can be represented using many different encodings, often dependent on the user's locale and operating system.  
+In the example below,  `pat = "première"` has encoding UTF8 (because that's the default in my locale) but the string stored in `lat1` has a Latin-1 encoding.  
+
 ```{r}
-latin1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
-                    encoding = "latin-1")
+Sys.getlocale()
 
-print(latin1)
-print(iconv(latin1, "latin1", "UTF8"))
+# load some text with a latin-1 encoding
+lat1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
+                n = 1)
+cat(paste("Text:", lat1, "\nEncoding:", Encoding(lat1), "\n"))
+Encoding(lat1) <- "latin1"
+cat(paste("Text:", lat1, "\nSet Encoding:", Encoding(lat1), "\n"))
 
-grep("prem", latin1)
-## grepvec will translate to UTF8 internally
-grepvec("prem", latin1)
+pat <- "première"
+cat("Pattern:", pat, "\nEncoding:", Encoding(pat), "\n")
+grepvec(pat, lat1)
+grep(pat, lat1)
 
-grepvec("xe8re", latin1[1])
-grep("xe8re", latin1[1])
-
-grepvec("\xe8re", latin1[1])
-try(grep("\xe8re", latin1[1])) # error
-
-grep("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
-grepvec("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
-
-grep("première", latin1[1])
-grepvec("première", latin1[1])
-
-try(grep(latin1[1], latin1[1], fixed = TRUE))
-grepvec(latin1[1], latin1[1], fixed = TRUE)
 
 ```
+
+As you can see above, grep was able to recognize that the pattern is in the string, but grepvec was not.  
+This is because grep is doing some conversion under the hood and grepvec is not.  
+
+Instead of assuming how you want your text to be translated, grepvec assumes that your inputs are already encoded in the way you want them to be. So you can manipulate the results to your liking by converting the encoding of text at the R level:  
+
+```{r}
+Encoding(pat)
+grepvec(pat, iconv(lat1, to = "UTF8"))
+
+Encoding(lat1)
+grepvec(iconv(pat, to = "latin1"), lat1)
+
+grepvec(iconv(pat, to = "UTF8"), iconv(lat1, to = "UTF8"), fixed = TRUE)
+```
+
+
+You can see your 
+
+```{r}
+grep("premi.re", lat1)
+grepvec("premi.re", lat1)
+
+```
+
+But if we indicate that the "any character could be there" extends for 2 characters, we do find a match (although this wouldn't be recommended practice)...
+
+```{r}
+grepvec("premi..re", lat1)
+grep("premi..re", lat1)
+```
+
+Because, when `lat1` is translated from latin1 to UTF8, the accented 'e' now takes up 2 bytes instead of just 1. 
+
+```{r}
+(lat1 <- substr(lat1, 1, 8))
+(l1_u <- iconv(lat1, "latin1", "UTF8"))
+p <- "premi.re"
+setNames(list(
+    charToRaw(lat1),
+    charToRaw(l1_u),
+    charToRaw(p)
+), c(paste(lat1, "-", Encoding(lat1)),
+     paste(l1_u, "-", Encoding(l1_u)),
+     paste(p, "-", Encoding(p))))
+
+```
+
+This can also cause issues when trying for a case-insensitive match.
+
+```{r}
+(p <- rawToChar(as.raw(200)))
+Encoding(p) <- "latin1"
+p
+grep(p, lat1, ignore.case = TRUE)
+grepvec(p, lat1, ignore_case = TRUE)
+grepvec(iconv(p, to = "UTF8"), iconv(lat1, to = "UTF8"), ignore_case = TRUE)
+## toupper causes conversion to utf8
+grepvec(toupper(p), toupper(lat1))
+
+pu <- iconv(p, "latin1", "utf8")
+charToRaw(p)
+charToRaw(pu)
+charToRaw(toupper(lat1))
+
+```
+
+Solutions? Standardize the encoding of your strings first, if possible.
+
+```{r}
+l1u <- toupper(lat1)
+Encoding(l1u)
+grepvec("È", l1u, fixed = TRUE)
+grep("È", l1u, fixed = TRUE)
+
+if (require("stringi", quietly = TRUE)) {
+    # the stringi package may help
+    (p_clean <- stringi::stri_trans_general(p, "Latin-ASCII"))
+    (l1_clean <- stringi::stri_trans_general(lat1, "Latin-ASCII"))
+    grepvec(p_clean, l1_clean, ignore_case = TRUE)
+}
+
+
+# but this is still not ideal
+(l1_clean <- iconv(lat1, "latin1", "UTF8"))
+grepvec(iconv("È", "", "UTF8"), l1_clean, ignore_case = TRUE)
+grep("È", l1_clean, ignore.case = TRUE)
+
+```
+

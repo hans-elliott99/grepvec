@@ -25,8 +25,8 @@
 /* #define TRE_USE_ALLOCA 1 */
 
 /* Define to enable wide character (wchar_t) support. */
-// #define TRE_WCHAR 1
-#undef TRE_WCHAR // HE
+#define TRE_WCHAR 1
+// #undef TRE_WCHAR // HE
 
 /* TRE version string. */
 #define TRE_VERSION "0.8.0"
@@ -38,12 +38,12 @@
 */
 
 /* Define to 1 if you have the `mbrtowc' function. */
-// #define HAVE_MBRTOWC 1
-#undef HAVE_MBRTOWC //HE
+#define HAVE_MBRTOWC 1
+// #undef HAVE_MBRTOWC //HE
 
 /* Define to 1 if the system has the type `mbstate_t'. */
-// #define HAVE_MBSTATE_T 1
-#undef HAVE_MBSTATE_T //HE
+#define HAVE_MBSTATE_T 1
+// #undef HAVE_MBSTATE_T //HE
 
 #ifdef TRE_WCHAR
 #include <wchar.h> // HE
