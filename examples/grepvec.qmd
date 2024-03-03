@@ -289,8 +289,8 @@ microbenchmark(
     grep(p, txt),
     grepvec(p, txt)
 )
-
 cat("regex:", p, "\n")
+
 ```
 
 
@@ -301,11 +301,15 @@ In R, characters can be represented using many different encodings, often depend
 In the example below,  `pat = "première"` has encoding UTF8 (because that's the default in my locale) but the string stored in `lat1` has a Latin-1 encoding.  
 
 ```{r}
-Sys.getlocale()
+Sys.getlocale("LC_CTYPE")
 
 # load some text with a latin-1 encoding
 lat1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
                 n = 1)
+pat <- "première"
+try(grepvec(pat, lat1))
+grep(pat, lat1)
+
 cat(paste("Text:", lat1, "\nEncoding:", Encoding(lat1), "\n"))
 Encoding(lat1) <- "latin1"
 cat(paste("Text:", lat1, "\nSet Encoding:", Encoding(lat1), "\n"))
@@ -331,25 +335,12 @@ Encoding(lat1)
 grepvec(iconv(pat, to = "latin1"), lat1)
 
 grepvec(iconv(pat, to = "UTF8"), iconv(lat1, to = "UTF8"), fixed = TRUE)
-```
 
 
-You can see your 
-
-```{r}
 grep("premi.re", lat1)
 grepvec("premi.re", lat1)
-
 ```
 
-But if we indicate that the "any character could be there" extends for 2 characters, we do find a match (although this wouldn't be recommended practice)...
-
-```{r}
-grepvec("premi..re", lat1)
-grep("premi..re", lat1)
-```
-
-Because, when `lat1` is translated from latin1 to UTF8, the accented 'e' now takes up 2 bytes instead of just 1. 
 
 ```{r}
 (lat1 <- substr(lat1, 1, 8))
@@ -365,7 +356,6 @@ setNames(list(
 
 ```
 
-This can also cause issues when trying for a case-insensitive match.
 
 ```{r}
 (p <- rawToChar(as.raw(200)))
@@ -373,37 +363,16 @@ Encoding(p) <- "latin1"
 p
 grep(p, lat1, ignore.case = TRUE)
 grepvec(p, lat1, ignore_case = TRUE)
-grepvec(iconv(p, to = "UTF8"), iconv(lat1, to = "UTF8"), ignore_case = TRUE)
-## toupper causes conversion to utf8
-grepvec(toupper(p), toupper(lat1))
-
-pu <- iconv(p, "latin1", "utf8")
-charToRaw(p)
-charToRaw(pu)
-charToRaw(toupper(lat1))
+grepvec(p, toupper(lat1), fixed = TRUE)
 
 ```
 
-Solutions? Standardize the encoding of your strings first, if possible.
+TODO: what if text encoding is very strange, will it get handled? try to break things...
 
-```{r}
-l1u <- toupper(lat1)
-Encoding(l1u)
-grepvec("È", l1u, fixed = TRUE)
-grep("È", l1u, fixed = TRUE)
+TODO: okay, so the encoding issues are well on their way to being resolved, but translating every string to UTF8 makes grepvec about 2x slower, so that we're back to the speed of base R solutions. Figure out how to speed up!
+    - Want to test both needle and haystack vectors for non-ascii strings, in which case we use wchar_t
+        - can test X% of each vector and let that be an option
+    - If none detected, can proceed with using char
+    - Can also add an encoding argument if user wants all strings to be treated as such without translation
 
-if (require("stringi", quietly = TRUE)) {
-    # the stringi package may help
-    (p_clean <- stringi::stri_trans_general(p, "Latin-ASCII"))
-    (l1_clean <- stringi::stri_trans_general(lat1, "Latin-ASCII"))
-    grepvec(p_clean, l1_clean, ignore_case = TRUE)
-}
-
-
-# but this is still not ideal
-(l1_clean <- iconv(lat1, "latin1", "UTF8"))
-grepvec(iconv("È", "", "UTF8"), l1_clean, ignore_case = TRUE)
-grep("È", l1_clean, ignore.case = TRUE)
-
-```
 
