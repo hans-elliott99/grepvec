@@ -4,12 +4,12 @@
 #include <R_ext/Rdynload.h>
 
 /* .Call calls */
-extern SEXP grepvec_(void *, void *, void *, void *, void *, void *);
-extern SEXP on_exit_grepvec_(void);
+extern SEXP C_grepvec(void *, void *, void *, void *, void *, void *, void *, void *);
+extern SEXP C_on_exit_grepvec(void);
 
 static const R_CallMethodDef CallEntries[] = {
-    {"grepvec_",         (DL_FUNC) &grepvec_,         6},
-    {"on_exit_grepvec_", (DL_FUNC) &on_exit_grepvec_, 0},
+    {"C_grepvec",         (DL_FUNC) &C_grepvec,         8},
+    {"C_on_exit_grepvec", (DL_FUNC) &C_on_exit_grepvec, 0},
     {NULL, NULL, 0}
 };
 

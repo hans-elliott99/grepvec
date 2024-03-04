@@ -1,0 +1,130 @@
+
+#include "widestring.h" //RwtransChar
+#include "stringutil.h"
+
+
+/*          STRING BUFFER          */
+
+/* R_AllocStringBuffer
+ * as used here, blen is always set to 0 in RtranslateToWchar, so blen and blen1
+ * are always equal to 1 initially.
+ * bsize is set to 4 * strlen(CHAR(x)) in RwtransChar, so for example,
+ * an input string with one char has strlen = 2 and thus bsize = 4*2 = 8.
+ * Then blen = (1/8) * 8 = 0 (since size_t), and 0 < 1 so blen = 0 + 8 = 8,
+ * which becomes the size of the buffer.
+*/
+void *RAllocStringBuffer(size_t blen, RStringBuffer *buf) {
+    size_t blen1, bsize = buf->defaultsize;
+    if (blen * sizeof(char) < buf->bufsize) return buf->data;
+    blen1 = blen = (blen + 1) * sizeof(char);
+    blen = (blen / bsize) * bsize;
+    if (blen < blen1) blen += bsize;
+    /* Result may be accessed as `wchar_t *` and other types; malloc /
+    realloc guarantee correct memory alignment for all object types */
+    if (buf->data == NULL) {
+        buf->data = (char *)malloc(blen);
+        if (buf->data)
+            buf->data[0] = '\0';
+    } else {
+        buf->data = (char *)realloc(buf->data, blen);
+    }
+    buf->bufsize = blen;
+    if (!buf->data) {
+        buf->bufsize = 0;
+        error("could not allocate memory in C function RallocStringBuffer");
+    }
+    return buf->data;
+}
+
+void RFreeStringBuffer(RStringBuffer *buf) {
+    if (buf->data != NULL) {
+        free(buf->data);
+        buf->bufsize = 0;
+        buf->data = NULL;
+    }
+}
+
+
+/*
+* Translate a string based on its translation type (ttype_t), which is based
+*  on the encoding of the string.
+*/
+const char *do_translate_char(SEXP x, ttype_t tt) {
+    if (TYPEOF(x) != CHARSXP) error("x must be a character vector");
+    switch (tt) {
+    case (use_utf8):
+        return translateCharUTF8(x);
+        break;
+    case (use_native):
+        return translateChar(x);
+        break;
+    default:
+        return CHAR(x);
+        break;
+    }
+}
+
+
+/*          STRING CACHE            */
+void init_cache(StringCache *cache, R_xlen_t n, ttype_t ttype) {
+    if (ttype == use_wchar) {
+        cache->warr = (const wchar_t**)R_Calloc(n, wchar_t*);
+    } else {
+        cache->arr = (const char**)R_Calloc(n, char*);
+    }
+    cache->n = n;
+    cache->tt = ttype;
+}
+
+
+void update_cache(SEXP ndl, StringCache *cache, R_xlen_t idx) {
+    if (TYPEOF(ndl) != CHARSXP) error("x must be a character vector");
+    // if (idx >= cache->n || idx < 0) error("index out of bounds");
+    if (cache->tt == use_wchar) {
+        if (cache->warr[idx] != NULL) return;
+        cache->warr[idx] = RwtransChar(ndl);
+    } else {
+        if (cache->arr[idx] != NULL) return;
+        cache->arr[idx] = do_translate_char(ndl, cache->tt);
+    }
+}
+
+
+void free_cache(StringCache *cache) {
+    // R_Calloc must be R_Free'd
+    // if (cache->n == 0) return;
+    if (cache->tt == use_wchar) {
+        if (cache->warr != NULL) R_Free(cache->warr);
+    } else {
+        if (cache->arr != NULL) R_Free(cache->arr);
+    }
+    cache->warr = NULL;
+    cache->arr = NULL;
+    cache->n = 0;
+}
+
+
+
+
+
+
+
+
+/*          WIDE STRING CACHE            */
+void init_Wcache(WideStringCache *cache, R_xlen_t n) {
+    cache->arr = (const wchar_t **)R_Calloc(n, wchar_t*);
+    cache->n = n;
+}
+
+void update_Wcache(SEXP ndl, WideStringCache *cache, R_xlen_t idx) {
+    // if (idx >= cache->n || idx < 0) error("index out of bounds");
+    if (cache->arr[idx] != NULL) return;
+    cache->arr[idx] = RwtransChar(ndl);
+}
+
+void free_Wcache(WideStringCache *cache) {
+    if (cache->n == 0) return;
+    R_Free(cache->arr); // R_Calloc must be R_Free'd
+    cache->n = 0;
+}
+

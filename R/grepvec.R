@@ -49,15 +49,17 @@
 #'         value = TRUE)
 #' grepvec("a[bc]", c("app", "ABBA", "accolade"), ignore_case = TRUE)
 #'
-#' @useDynLib grepvec, grepvec_
+#' @useDynLib grepvec, C_grepvec, C_on_exit_grepvec
 #' @export
 grepvec <- function(needles,
                     haystacks,
-                    fixed = FALSE,
                     ignore_case = FALSE,
                     value = FALSE,
-                    names = FALSE,
+                    fixed = FALSE,
+                    use_bytes = FALSE,
+                    invert = FALSE,
                     keepdim = FALSE,
+                    names = FALSE,
                     match = c("all", "first")) {
     # prep arguments
     needles <- as.character(needles)
@@ -76,10 +78,17 @@ grepvec <- function(needles,
     if (is.na(keepdim)) stop("argument 'keepdim' must be logical.")
     match <- match.arg(match)
     match_ix <- switch(match, all = 0L, first = 1L)
-    # grepvec (ndl, hay, f, m, i, k)
-    on.exit(.Call("on_exit_grepvec_"))
-    x <- .Call("grepvec_",
-               needles, haystacks, fixed, match_ix, ignore_case, keepdim)
+    # SEXP grepvec_(SEXP needles,
+    #               SEXP haystck,
+    #               SEXP ignorecase,
+    #               SEXP fixed,
+    #               SEXP usebytes,
+    #               SEXP invert,
+    #               SEXP matchrule,
+    #               SEXP keepdim) {
+    on.exit(.Call("C_on_exit_grepvec"))
+    x <- .Call("C_grepvec", needles, haystacks,
+               ignore_case, fixed, use_bytes, invert, match_ix, keepdim)
     if (value)
         x <- lapply(x, function(ixs) haystacks[ixs])
     if (names)

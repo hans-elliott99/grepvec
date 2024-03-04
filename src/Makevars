@@ -14,7 +14,9 @@ tre_src = \
 	tre/tre-stack.c \
 	tre/xmalloc.c
 
-SOURCES = $(tre_src) init.c grepvec.c
+grepvec_src = regexp.c stringutil.c widestring.c
+
+SOURCES = $(tre_src) $(grepvec_src) init.c grepvec.c
 OBJECTS = $(SOURCES:.c=.o)
 all: $(SHLIB)
 

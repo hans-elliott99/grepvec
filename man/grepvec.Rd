@@ -7,11 +7,13 @@
 grepvec(
   needles,
   haystacks,
-  fixed = FALSE,
   ignore_case = FALSE,
   value = FALSE,
-  names = FALSE,
+  fixed = FALSE,
+  use_bytes = FALSE,
+  invert = FALSE,
   keepdim = FALSE,
+  names = FALSE,
   match = c("all", "first")
 )
 }
@@ -22,16 +24,16 @@ in \verb{haystacks`` as fixed strings or regular expressions, depending on the }
 \item{haystacks}{A character vector of strings which will be searched over
 for matches in \code{needles}.}
 
-\item{fixed}{A logical(1), default \code{FALSE}. If \code{TRUE}, each string in
-needles is treated as as an exact string to find. If \code{FALSE}, needles are
-treated as regular expressions.}
-
 \item{ignore_case}{A logical(1), default \code{FALSE}. If \code{TRUE}, the pattern
 matching will be case-insensitive. Ignored if \code{fixed = TRUE}.}
 
 \item{value}{A logical(1), default \code{FALSE}. If \code{TRUE}, actual strings from
 \code{haystacks} are returned instead of indices. Otherwise, integer indices are
 returned.}
+
+\item{fixed}{A logical(1), default \code{FALSE}. If \code{TRUE}, each string in
+needles is treated as as an exact string to find. If \code{FALSE}, needles are
+treated as regular expressions.}
 
 \item{match}{A character(1), default "all". If "first", the first match
 found in needles is returned for each string in haystack. This may improve
