@@ -30,6 +30,7 @@ typedef enum {
     NT_FROM_ASCII  = 4,
 } nttype_t;
 
+
 static int RwneedsTranslation(SEXP x) {
     if (IS_ASCII(x)) return NT_FROM_ASCII;
     if (IS_UTF8(x)) return NT_FROM_UTF8;
@@ -71,7 +72,6 @@ static int RtranslateToWchar(const char *ans,
     const char *inbuf, *from;
     char *outbuf;
     size_t inb, outb, res;
-    // Rprintf("translateToWchar\n");
     /*Case LATIN1*/
     if (fromcode == NT_FROM_LATIN1) {
         if (!latin1_wobj) {
@@ -99,7 +99,7 @@ static int RtranslateToWchar(const char *ans,
         } else {
             obj = utf8_wobj;
         }
-    /*Case Native - NT_FROM_NATIVE*/
+    /*Case Native*/
     } else {
         obj = Riconv_open(TO_WCHAR, "");
         if (obj == (void *)-1)
@@ -115,23 +115,7 @@ static int RtranslateToWchar(const char *ans,
     /* convert input */
     res = Riconv(obj, &inbuf, &inb, &outbuf, &outb);
     if (res == (size_t)-1) {
-        switch (errno)
-        {
-            // TODO: return ints to use as error codes and make pretty warnings
-            // in grepvec
-        case EILSEQ:
-            error("invalid multibyte sequence.");
-            break; 
-        case EINVAL:
-            error("incomplete multibyte sequence.");
-            break;
-        case E2BIG:
-            error("iconv output buffer too small.");
-            break;
-        default:
-            error("iconv failed to convert to wide char for unkown reason.");
-        }
-        return 1;
+        return errno;
     }
     /* terminate wide string */
     *((wchar_t *)outbuf) = L'\0';
@@ -139,7 +123,7 @@ static int RtranslateToWchar(const char *ans,
     return 0;
 }
 
-const wchar_t *RwtransChar(SEXP x) {
+const wchar_t *RwtransChar(SEXP x, int *err) {
     if (TYPEOF(x) != CHARSXP) error("x must be a character vector");
     nttype_t t = RwneedsTranslation(x);
     if (t == NT_FROM_ASCII)
@@ -150,7 +134,11 @@ const wchar_t *RwtransChar(SEXP x) {
     https://github.com/tidyverse/readr/blob/main/src/Iconv.cpp#L87
     */
     RStringBuffer cbuff = {NULL, 0, 4 * strlen(CHAR(x))};
-    RtranslateToWchar(CHAR(x), &cbuff, t);
+    (*err) = RtranslateToWchar(CHAR(x), &cbuff, t);
+    if (*err) {
+        RFreeStringBuffer(&cbuff);
+        return L"\0"; // a string that will match to nothing
+    }
     return RwcopyAndFreeString(&cbuff);
 }
 
@@ -160,4 +148,27 @@ void Riconv_cleanup(void) {
     if (utf8_wobj) Riconv_close(utf8_wobj);
     latin1_wobj = NULL;
     utf8_wobj = NULL;
+}
+
+
+
+void Riconv_warning(int errcode, R_xlen_t idx, int which) {
+    char whichvec[10];
+    strcpy(whichvec, (which) ? "haystack" : "needle");
+    ++idx;
+    switch (errcode)
+    {
+    case EILSEQ:
+        warning("invalid multibyte sequence in %s string %d.", whichvec, idx);
+        break; 
+    case EINVAL:
+        warning("incomplete multibyte sequence in %s string %d.", whichvec, idx);
+        break;
+    case E2BIG:
+        warning("iconv output buffer too small.");
+        break;
+    default:
+        warning("iconv failed to convert %s string %d to wide char for unkown reason.",
+                whichvec, idx);
+    }
 }

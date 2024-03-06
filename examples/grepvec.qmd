@@ -7,6 +7,12 @@ format:
 
 `r Sys.time()`  
 
+Notes:
+- test and translate diff encodings  
+- refactored a bit  
+- encoding message left on  
+
+
 
 ```{r}
 # compiled on:
@@ -304,7 +310,7 @@ In the example below,  `pat = "première"` has encoding UTF8 (because that's the
 Fundamentally, although the UTF8-encode "première" and the Latin-1 version appear identical on our screens, different sequences of bytes are used to represent the strings.
 
 
-```{r}
+```{r encodings}
 Sys.getlocale("LC_CTYPE")
 
 # load some text with a latin-1 encoding
@@ -312,9 +318,9 @@ lat1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/m
                 n = 1)
 pat <- "première"
 try(grepvec(pat, lat1))
-grep(pat, lat1)
+try(grep(pat, lat1))
 
-cat(paste("Text:", lat1, "\nEncoding:", Encoding(lat1), "\n"))
+# cat(paste("Text:", lat1, "\nEncoding:", Encoding(lat1), "\n"))
 Encoding(lat1) <- "latin1"
 cat(paste("Text:", lat1, "\nSet Encoding:", Encoding(lat1), "\n"))
 
@@ -326,14 +332,8 @@ grep(pat, lat1)
 grep(pat, lat1, useBytes = TRUE)
 grepvec(pat, lat1, use_bytes = TRUE)
 
-charToRaw(pat)
-charToRaw(lat1)
 ```
 
-As you can see above, grep was able to recognize that the pattern is in the string, but grepvec was not.  
-This is because grep is doing some conversion under the hood and grepvec is not.  
-
-Instead of assuming how you want your text to be translated, grepvec assumes that your inputs are already encoded in the way you want them to be. So you can manipulate the results to your liking by converting the encoding of text at the R level:  
 
 ```{r}
 Encoding(pat)
@@ -351,43 +351,29 @@ grepvec("premi.re", lat1)
 
 
 ```{r}
-(lat1 <- substr(lat1, 1, 8))
-(l1_u <- iconv(lat1, "latin1", "UTF8"))
-p <- "premi.re"
-setNames(list(
-    charToRaw(lat1),
-    charToRaw(l1_u),
-    charToRaw(p)
-), c(paste(lat1, "-", Encoding(lat1)),
-     paste(l1_u, "-", Encoding(l1_u)),
-     paste(p, "-", Encoding(p))))
-
-```
-
-
-```{r}
 (p <- rawToChar(as.raw(200)))
 Encoding(p) <- "latin1"
 p
+
 grep(p, lat1, ignore.case = TRUE)
 grepvec(p, lat1, ignore_case = TRUE)
 grepvec(p, toupper(lat1), fixed = TRUE)
 
+(ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/koi8_r.txt")[3])
+grep("Cyr", ex)
+grepvec("Cyr", ex)
+
+(ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/utf8.txt"))
+Encoding(ex) <- "UTF-8"
+
+grep("K", ex)
+grepvec("K", ex)
+
+grep("Кириллица", ex)
+grepvec("Кириллица", ex)
+
 ```
+
+
 
 TODO: what if text encoding is very strange, will it get handled? try to break things...
-
-```{r}
-res <- lapply(words, grep, x = txt[1:500])
-
-names(res) <- seq_along(res) # stack requires names
-byhay <- with(utils::stack(res), split(ind, values))
-# expand list to be length of haystacks
-out <- lapply(as.character(seq(1, 500)), \(hay_ix) {
-    ixs <- byhay[[hay_ix]] # get needle indices for given haystack
-    # ixs is null if there were no matches for this needle
-    as.integer(ixs)
-})
-
-
-```

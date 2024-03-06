@@ -17,13 +17,10 @@
 
 // #include "tre/tre.h" // tre_regcomp, tre_regexec, tre_regfree, tre_regerror
 
-/* interval at which to check interrupts */
+/* interval at which to check user interrupts */
 #define NINTERRUPT 100
 
 
-
-/*                          GREPVEC                                          */
-///////////////////////////////////////////////////////////////////////////////
 enum MatchRule {
     RETURNALL   = 0,
     RETURNFIRST = 1
@@ -136,22 +133,26 @@ SEXP C_grepvec(SEXP needles,
         Rprintf("using char\n");
     }
 
-    /*result vector - list of integer vectors*/
+    /*output a list of integer vectors*/
     SEXP output = PROTECT(allocVector(VECSXP, Nn));
     /*cache for translated haystacks*/
     init_str_cache(&string_cache, Nh, tt);
+    /*regex info struct*/
+    struct RegexInfo rgxo = {{0},       // regex_t
+                             rgx_flags, // flags for tre_regcomp
+                             tt};       // ttype_t
 
     R_xlen_t i, j, nmatch;
     int skip, res;
     char *ndl_str = NULL;
-    regex_t ndl_rgx;
     SEXP indices;
+    int *ind_ptr = INTEGER(indices);
     /*
         iterate and compare compiled regex j with string i
     */
     for (j=0; j < Nn; ++j) {
         if ((j + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
-        skip = (fxd) ? 0 : init_regex(STRING_ELT(needles, j), &ndl_rgx, rgx_flags, tt);
+        skip = (fxd) ? 0 : init_regex(STRING_ELT(needles, j), &rgxo, j);
         if (skip || STRING_ELT(needles, j) == NA_STRING) {
             SET_VECTOR_ELT(output, j, allocVector(INTSXP, 0));
             continue;
@@ -166,18 +167,19 @@ SEXP C_grepvec(SEXP needles,
                 continue;
             }
             update_str_cache(STRING_ELT(haystck, i), &string_cache, i);
+
             if (fxd) {
                 res = (strstr(string_cache.arr[i], ndl_str) != NULL);
             } else {
-                res = (tt == use_wchar) ? wstrrgx(string_cache.warr[i], &ndl_rgx)
-                                        : strrgx(string_cache.arr[i], &ndl_rgx);
+                res = (tt == use_wchar) ? wstrrgx(string_cache.warr[i], &rgxo.rgx)
+                                        : strrgx(string_cache.arr[i], &rgxo.rgx);
             }
             if (res ^ inv) {
                 INTEGER(indices)[nmatch++] = i + 1; // R's idx for current hay
                 if (mrule == RETURNFIRST) break;
             }
         }
-        if (!fxd) tre_regfree(&ndl_rgx);
+        if (!fxd) tre_regfree(&rgxo.rgx);
         if (keep) {
             for (i=nmatch; i < Nh; ++i) INTEGER(indices)[i] = NA_INTEGER;
             nmatch = Nh;

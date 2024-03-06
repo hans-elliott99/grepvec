@@ -1,4 +1,4 @@
-
+#include "shared.h" //Riconv_warning
 #include "widestring.h" //RwtransChar
 #include "stringutil.h"
 
@@ -80,7 +80,9 @@ void init_str_cache(StringCache *cache, R_xlen_t n, ttype_t ttype) {
 void update_str_cache(SEXP ndl, StringCache *cache, R_xlen_t idx) {
     // if (TYPEOF(ndl) != CHARSXP) error("x must be a character vector");
     if (cache->tt == use_wchar && cache->warr[idx] == NULL) {
-        cache->warr[idx] = RwtransChar(ndl);
+        int err;
+        cache->warr[idx] = RwtransChar(ndl, &err);
+        if (err) Riconv_warning(err, idx, 1); // 1 for haystack
     } else {
         if (cache->arr[idx] != NULL) return;
         cache->arr[idx] = do_translate_char(ndl, cache->tt);

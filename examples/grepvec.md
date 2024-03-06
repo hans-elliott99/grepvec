@@ -7,9 +7,11 @@
   solutions](#compare-grepvec-with-native-r-solutions)
 - [Encodings](#encodings)
 
-2024-03-02 10:54:04.726051
+2024-03-06 01:39:39.724077
 
-Note: use xlength instead of length
+Notes: - test and translate diff encodings  
+- refactored a bit  
+- encoding message left on
 
 ``` r
 # compiled on:
@@ -89,6 +91,8 @@ grep("gr(a|e)y", c("grey", "gray"))
 grepvec("gr(a|e)y", c("grey", "gray"))
 ```
 
+    using char
+
     [[1]]
     [1] 1 2
 
@@ -96,11 +100,16 @@ grepvec("gr(a|e)y", c("grey", "gray"))
 grepvec(c("^a", "\\d"), c("1", "apple"))
 ```
 
+    using char
+
+    Warning in grepvec(c("^a", "\\d"), c("1", "apple")): invalid regular expression
+    '\d': Unknown character class name
+
     [[1]]
     [1] 2
 
     [[2]]
-    [1] 1
+    integer(0)
 
 ``` r
 lapply(c("^a", "\\d"), \(p) grep(p, c("1", "apple")))
@@ -120,6 +129,8 @@ grepvec(c("one", "possib", "many"),
           "Done"))
 ```
 
+    using char
+
     [[1]]
     [1] 1 4
 
@@ -132,6 +143,8 @@ grepvec(c("one", "possib", "many"),
 ``` r
 grepvec(letters[1:4], c("AbC", 123), ignore_case = TRUE, value = TRUE)
 ```
+
+    using char
 
     [[1]]
     [1] "AbC"
@@ -149,12 +162,16 @@ grepvec(letters[1:4], c("AbC", 123), ignore_case = TRUE, value = TRUE)
 grepvec("^regex$", "regex")
 ```
 
+    using char
+
     [[1]]
     [1] 1
 
 ``` r
 grepvec("^fixed$", "fixed", fixed = TRUE)
 ```
+
+    using char
 
     [[1]]
     integer(0)
@@ -164,10 +181,15 @@ words <- gen_word_list(txt, n = 2000)
 
 t0 = Sys.time()
 m <- grepvec(words, txt[1:500], match = "all")
+```
+
+    using char
+
+``` r
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.2034526 secs
+    Time difference of 0.5034442 secs
 
 ``` r
 # base R version
@@ -176,13 +198,18 @@ m2 <- lapply(words, grep, x = txt[1:500])
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.4147382 secs
+    Time difference of 0.4545038 secs
 
 Be careful when unlisting the results, because if no match was found a 0
 length vector is returned.
 
 ``` r
 res <- grepvec(words[1:100], tail(txt, 500), match = "first", value = TRUE)
+```
+
+    using char
+
+``` r
 head(res)
 ```
 
@@ -236,6 +263,11 @@ d <- data.frame(txt_col = txt[1001:2000], match = FALSE)
 
 # example - get rows that match any pattern
 d[unique(unlist(grepvec(pat, d$txt_col, match = "first"))), "match"] <- TRUE
+```
+
+    using char
+
+``` r
 head(subset(d, match == TRUE))
 ```
 
@@ -272,6 +304,8 @@ d[, keywords] <- 0
 (ixs <- unlist(grepvec(keywords, d$txt_col, match = "first")))
 ```
 
+    using char
+
     [1]  25 319   4
 
 ``` r
@@ -293,6 +327,8 @@ d[c(1:2, unlist(ixs)), ]
 grepvec(pat[1:2], txt, match = "first")
 ```
 
+    using char
+
     [[1]]
     [1] 226
 
@@ -302,6 +338,8 @@ grepvec(pat[1:2], txt, match = "first")
 ``` r
 grepvec(pat[1:2], rev(txt), match = "first")
 ```
+
+    using char
 
     [[1]]
     [1] 417
@@ -313,6 +351,11 @@ grepvec(pat[1:2], rev(txt), match = "first")
 # example - keep dimensions to convert to a data.frame
 x <- do.call(cbind.data.frame,
              grepvec(letters, txt, keepdim = TRUE, names = TRUE))
+```
+
+    using char
+
+``` r
 ## number of occurrences in all of shakespeare
 nocc <- apply(x, MARGIN = 2, FUN = \(y) sum(!is.na(y)))
 sort(nocc, decreasing = TRUE)
@@ -329,6 +372,11 @@ sort(nocc, decreasing = TRUE)
 # capital letters?
 x <- do.call(cbind.data.frame,
              grepvec(LETTERS, txt, keepdim = TRUE, names = TRUE))
+```
+
+    using char
+
+``` r
 ## number of occurrences in all of shakespeare
 nocc <- apply(x, MARGIN = 2, FUN = \(y) sum(!is.na(y)))
 sort(nocc, decreasing = TRUE)
@@ -342,13 +390,12 @@ sort(nocc, decreasing = TRUE)
 ``` r
 # example - if you are a data.table user, functions as.data.table and setDT make
 # it easy to convert a list of equal length vectors into a table 
-if (require("data.table"))
+if (require("data.table", quietly = TRUE))
     print(data.table::setDT(grepvec(c("a", "z"), txt,
                                     keepdim = TRUE, names = TRUE, value = TRUE)))
 ```
 
-    Loading required package: data.table
-
+    using char
                                                       a
                                                  <char>
          1:                      by William Shakespeare
@@ -382,6 +429,8 @@ Invalid regex patterns:
 # what if we use an invalid regex pattern?
 grepvec(c("[bad", "(regex"), "those are bad regex patterns")
 ```
+
+    using char
 
     Warning in grepvec(c("[bad", "(regex"), "those are bad regex patterns"):
     invalid regular expression '[bad': Missing ']'
@@ -427,10 +476,15 @@ t0 <- Sys.time()
 suppressWarnings({
     x <- grepvec(ndl, hay, fixed = FALSE, match = "all")
 })
+```
+
+    using char
+
+``` r
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 1.792635 mins
+    Time difference of 4.434608 mins
 
 ``` r
 #
@@ -440,10 +494,15 @@ t0 <- Sys.time()
 suppressWarnings({
     x <- grepvec(ndl, hay, fixed = FALSE, match = "first")
 })
+```
+
+    using char
+
+``` r
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 6.291326 secs
+    Time difference of 17.88123 secs
 
 ``` r
 #
@@ -454,20 +513,30 @@ t0 <- Sys.time()
 suppressWarnings({
     x <- grepvec(ndl, hay, fixed = TRUE, match = "all")
 })
+```
+
+    using char
+
+``` r
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 10.91032 secs
+    Time difference of 13.73832 secs
 
 ``` r
 t0 <- Sys.time()
 suppressWarnings({
     x <- grepvec(ndl, hay, fixed = TRUE, match = "first")
 })
+```
+
+    using char
+
+``` r
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.6527908 secs
+    Time difference of 0.9125111 secs
 
 ## Compare grepvec with native R solutions
 
@@ -496,6 +565,11 @@ shorttxt <- txt[1:10000]
 x_loop <- loop_grep(shortndls, shorttxt)
 x_lapply <- lapply_grep(shortndls, shorttxt)
 x_grepvec <- grepvec(shortndls, shorttxt)
+```
+
+    using char
+
+``` r
 all(unlist(x_loop) == unlist(x_lapply))
 ```
 
@@ -517,17 +591,28 @@ microbenchmark(loop_grep(shortndls, shorttxt),
                times = 10)
 ```
 
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+
     Unit: milliseconds
                                             expr      min       lq     mean
-                  loop_grep(shortndls, shorttxt) 454.2725 457.8696 473.8369
-                lapply_grep(shortndls, shorttxt) 445.0287 445.9500 477.6572
-         lapply_grep_lambda(shortndls, shorttxt) 452.1758 461.0080 490.6828
-     grepvec(shortndls, shorttxt, match = "all") 213.5278 214.7112 229.0303
+                  loop_grep(shortndls, shorttxt) 471.5450 505.3988 545.7771
+                lapply_grep(shortndls, shorttxt) 455.5682 478.7463 531.8067
+         lapply_grep_lambda(shortndls, shorttxt) 467.8352 494.6814 590.9643
+     grepvec(shortndls, shorttxt, match = "all") 452.5465 497.6271 523.0776
        median       uq      max neval
-     463.9407 469.8303 550.2628    10
-     460.7358 483.2868 563.8530    10
-     475.5170 535.7120 553.8740    10
-     221.9986 229.7894 267.5283    10
+     537.4674 598.8033 634.1333    10
+     496.6791 539.6561 724.0494    10
+     506.2174 633.7066 992.6495    10
+     504.5117 566.5447 585.8278    10
 
 Some comparisons with `base::grep`:
 
@@ -551,13 +636,613 @@ microbenchmark(
 )
 ```
 
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
+    using char
+
+    Warning in grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"):
+    invalid regular expression '^[[:alnum:]._-]+@[[:alnum:].-]+$': Unknown
+    character class name
+
     Unit: microseconds
-                                                                   expr  min   lq
-        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.4 13.8
-     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 19.7 20.9
-       mean median    uq   max neval
-     16.546   14.7 15.80  41.0   100
-     26.412   22.2 25.85 102.7   100
+                                                                   expr  min     lq
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 15.8  20.00
+     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 86.2 102.55
+        mean median     uq   max neval
+      33.663  26.35  39.50 130.5   100
+     157.829 149.65 195.35 354.8   100
 
 ``` r
 microbenchmark(
@@ -566,13 +1251,114 @@ microbenchmark(
 )
 ```
 
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+
     Unit: microseconds
-                                                expr  min   lq   mean median   uq
-        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.1  4.5  5.564    5.2  5.4
-     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 15.6 16.1 17.727   16.6 17.1
+                                                expr  min   lq   mean median    uq
+        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.7  5.2  7.071   6.10  6.95
+     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 18.2 19.6 24.550  20.65 24.95
       max neval
-     43.0   100
-     71.9   100
+     43.1   100
+     84.2   100
 
 ``` r
 microbenchmark(
@@ -581,13 +1367,114 @@ microbenchmark(
 )
 ```
 
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+
     Unit: microseconds
                                                                                                     expr
         grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
      grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
-      min    lq   mean median    uq  max neval
-      6.4 10.85 12.191  12.00 12.85 44.6   100
-     16.7 30.90 31.897  32.25 33.55 72.0   100
+      min    lq  mean median   uq  max neval
+      6.2  6.75  8.05    7.6  8.0 46.0   100
+     20.2 21.00 22.76   21.7 22.1 84.1   100
 
 ``` r
 p <- gen_word_list(txt, n = 1)
@@ -597,10 +1484,111 @@ microbenchmark(
 )
 ```
 
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+    using char
+
     Unit: milliseconds
-                expr     min       lq     mean   median      uq     max neval
-        grep(p, txt) 53.6124 59.92450 63.77697 62.45925 67.1125 78.1553   100
-     grepvec(p, txt) 18.0961 20.64005 22.50911 21.71730 23.6274 32.9003   100
+                expr     min      lq     mean   median       uq      max neval
+        grep(p, txt) 54.0313 63.7548 75.12590 73.48435 83.49620 148.7196   100
+     grepvec(p, txt) 59.0619 66.0396 77.35004 76.05475 86.35665 111.6660   100
 
 ``` r
 cat("regex:", p, "\n")
@@ -610,117 +1598,257 @@ cat("regex:", p, "\n")
 
 ## Encodings
 
-``` r
-latin1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
-                    encoding = "latin-1")
+R supports many differenct character encodings. When you load text data
+into R, R has no way to know for certain what encoding scheme the bytes
+in its memory correspond to.  
+Grepvec takes care to behave similairly to grep in dealing with
+character encodings. If the encoding of a string has been set (e.g., via
+`iconv`, `Encoding`, or something else), grepvec can treat the string
+appropriately.
 
-print(latin1)
-```
-
-    [1] "premi\xe8re is first"            "premie?re is slightly different"
-    [3] "????????? is Cyrillic"           "? am Deseret"                   
-
-``` r
-print(iconv(latin1, "latin1", "UTF8"))
-```
-
-    [1] "première is first"               "premie?re is slightly different"
-    [3] "????????? is Cyrillic"           "? am Deseret"                   
-
-``` r
-grep("prem", latin1)
-```
-
-    Warning in grep("prem", latin1): unable to translate 'premi<e8>re is first' to
-    a wide string
-
-    Warning in grep("prem", latin1): input string 1 is invalid
-
-    [1] 2
+In the example below, `pat = "première"` has encoding UTF8 (because
+that’s the default in my locale) but the string stored in `lat1` has a
+Latin-1 encoding. If the encoding of `lat1` is not identified before it
+is passed to grepvec or grep, these functions will error because they
+cannot determine how the characters should be treated.  
+Fundamentally, although the UTF8-encode “première” and the Latin-1
+version appear identical on our screens, different sequences of bytes
+are used to represent the strings.
 
 ``` r
-## grepvec will translate to UTF8 internally
-grepvec("prem", latin1)
+Sys.getlocale("LC_CTYPE")
 ```
 
-    [[1]]
-    [1] 1 2
+    [1] "C.UTF-8"
 
 ``` r
-grepvec("xe8re", latin1[1])
+# load some text with a latin-1 encoding
+lat1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
+                n = 1)
+pat <- "première"
+try(grepvec(pat, lat1))
 ```
+
+    using wchar
+
+    Warning in grepvec(pat, lat1): invalid multibyte sequence in haystack string 1.
 
     [[1]]
     integer(0)
 
 ``` r
-grep("xe8re", latin1[1])
+try(grep(pat, lat1))
 ```
 
-    Warning in grep("xe8re", latin1[1]): unable to translate 'premi<e8>re is first'
-    to a wide string
+    Warning in grep(pat, lat1): unable to translate 'premi<e8>re is first' to a
+    wide string
 
-    Warning in grep("xe8re", latin1[1]): input string 1 is invalid
+    Warning in grep(pat, lat1): input string 1 is invalid
 
     integer(0)
 
 ``` r
-grepvec("\xe8re", latin1[1])
+# cat(paste("Text:", lat1, "\nEncoding:", Encoding(lat1), "\n"))
+Encoding(lat1) <- "latin1"
+cat(paste("Text:", lat1, "\nSet Encoding:", Encoding(lat1), "\n"))
 ```
+
+    Text: première is first 
+    Set Encoding: latin1 
+
+``` r
+pat <- "première"
+cat("Pattern:", pat, "\nEncoding:", Encoding(pat), "\n")
+```
+
+    Pattern: première 
+    Encoding: UTF-8 
+
+``` r
+grepvec(pat, lat1)
+```
+
+    using wchar
 
     [[1]]
     [1] 1
 
 ``` r
-try(grep("\xe8re", latin1[1])) # error
-```
-
-    Warning in grep("\xe8re", latin1[1]): unable to translate '<e8>re' to a wide
-    string
-
-    Error in grep("\xe8re", latin1[1]) : regular expression is invalid
-
-``` r
-grep("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
+grep(pat, lat1)
 ```
 
     [1] 1
 
 ``` r
-grepvec("première", iconv(latin1[1], from = "latin1", to = "UTF8"))
+grep(pat, lat1, useBytes = TRUE)
 ```
-
-    [[1]]
-    [1] 1
-
-``` r
-grep("première", latin1[1])
-```
-
-    Warning in grep("première", latin1[1]): unable to translate 'premi<e8>re is
-    first' to a wide string
-
-    Warning in grep("première", latin1[1]): input string 1 is invalid
 
     integer(0)
 
 ``` r
-grepvec("première", latin1[1])
+grepvec(pat, lat1, use_bytes = TRUE)
 ```
+
+    using char
 
     [[1]]
     integer(0)
 
 ``` r
-try(grep(latin1[1], latin1[1], fixed = TRUE))
+Encoding(pat)
 ```
 
-    Error in grep(latin1[1], latin1[1], fixed = TRUE) : 
-      regular expression is invalid in this locale
+    [1] "UTF-8"
 
 ``` r
-grepvec(latin1[1], latin1[1], fixed = TRUE)
+grepvec(pat, iconv(lat1, to = "UTF8"))
 ```
+
+    using wchar
 
     [[1]]
     [1] 1
+
+``` r
+Encoding(lat1)
+```
+
+    [1] "latin1"
+
+``` r
+grepvec(iconv(pat, to = "latin1"), lat1)
+```
+
+    using wchar
+
+    [[1]]
+    [1] 1
+
+``` r
+grepvec(iconv(pat, to = "UTF8"), iconv(lat1, to = "UTF8"), fixed = TRUE)
+```
+
+    using utf8
+
+    [[1]]
+    [1] 1
+
+``` r
+grep("premi.re", lat1)
+```
+
+    [1] 1
+
+``` r
+grepvec("premi.re", lat1)
+```
+
+    using char
+
+    [[1]]
+    [1] 1
+
+``` r
+(p <- rawToChar(as.raw(200)))
+```
+
+    [1] "\xc8"
+
+``` r
+Encoding(p) <- "latin1"
+p
+```
+
+    [1] "È"
+
+``` r
+grep(p, lat1, ignore.case = TRUE)
+```
+
+    [1] 1
+
+``` r
+grepvec(p, lat1, ignore_case = TRUE)
+```
+
+    using wchar
+
+    [[1]]
+    [1] 1
+
+``` r
+grepvec(p, toupper(lat1), fixed = TRUE)
+```
+
+    using native
+
+    [[1]]
+    [1] 1
+
+``` r
+(ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/koi8_r.txt")[3])
+```
+
+    [1] "\xeb\xc9\xd2\xc9\xcc\xcc\xc9\xc3\xc1 is Cyrillic"
+
+``` r
+grep("Cyr", ex)
+```
+
+    Warning in grep("Cyr", ex): unable to translate
+    '<eb><c9><d2><c9><cc><cc><c9><c3><c1> is Cyrillic' to a wide string
+
+    Warning in grep("Cyr", ex): input string 1 is invalid
+
+    integer(0)
+
+``` r
+grepvec("Cyr", ex)
+```
+
+    using char
+
+    [[1]]
+    [1] 1
+
+``` r
+(ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/utf8.txt"))
+```
+
+    [1] "première is first"              "première is slightly different"
+    [3] "Кириллица is Cyrillic"          "𐐀 am Deseret"                  
+
+``` r
+Encoding(ex) <- "UTF-8"
+
+grep("K", ex)
+```
+
+    integer(0)
+
+``` r
+grepvec("K", ex)
+```
+
+    using char
+
+    [[1]]
+    integer(0)
+
+``` r
+grep("Кириллица", ex)
+```
+
+    [1] 3
+
+``` r
+grepvec("Кириллица", ex)
+```
+
+    using wchar
+
+    [[1]]
+    [1] 3
+
+TODO: what if text encoding is very strange, will it get handled? try to
+break things…

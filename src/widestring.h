@@ -29,7 +29,8 @@
 // #define IS_UTF8(x)  (LEVELS(x) & 8)
 // #define IS_ASCII(x) (LEVELS(x) & 64)
 
-const wchar_t *RwtransChar(SEXP x);
+const wchar_t *RwtransChar(SEXP x, int *err);
 void Riconv_cleanup(void);
+void Riconv_warning(int errcode, R_xlen_t idx, int which);
 
 #endif // grepvec_WIDESTRING_H
