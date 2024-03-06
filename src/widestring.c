@@ -43,6 +43,7 @@ static const wchar_t *RwcopyAndFreeString(RStringBuffer *cbuff) {
     size_t res = wcslen((wchar_t *) cbuff->data) + 1;
     wchar_t *p = (wchar_t *) R_alloc(res, sizeof(wchar_t));
     memcpy(p, cbuff->data, res * sizeof(wchar_t));
+    RFreeStringBuffer(cbuff);
     return p;
 }
 
@@ -64,8 +65,8 @@ Translate from current encoding to wchar_t = UTF-16LE/UCS-4
 static void *latin1_wobj = NULL, *utf8_wobj = NULL;
 
 static int RtranslateToWchar(const char *ans,
-                            RStringBuffer *cbuff,
-                            nttype_t fromcode) {
+                             RStringBuffer *cbuff,
+                             nttype_t fromcode) {
     void *obj;
     const char *inbuf, *from;
     char *outbuf;

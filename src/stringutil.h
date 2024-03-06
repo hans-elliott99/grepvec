@@ -30,20 +30,9 @@ typedef struct {
     ttype_t tt; // flag for type of string translation/if wide char is needed
 } StringCache;
 
-void init_cache(StringCache *cache, R_xlen_t n, ttype_t ttype);
-void update_cache(SEXP ndl, StringCache *cache, R_xlen_t idx);
-void free_cache(StringCache *cache);
+void init_str_cache(StringCache *cache, R_xlen_t n, ttype_t ttype);
+void update_str_cache(SEXP ndl, StringCache *cache, R_xlen_t idx);
+void free_str_cache(StringCache *cache);
 
-/*
-    WIDE STRING CACHE
-*/
-typedef struct {
-    const wchar_t **arr;
-    R_xlen_t n;
-} WideStringCache;
-
-void init_Wcache(WideStringCache *cache, R_xlen_t n);
-void update_Wcache(SEXP ndl, WideStringCache *cache, R_xlen_t idx);
-void free_Wcache(WideStringCache *cache);
 
 #endif // grepvec_STRING_UTIL_H

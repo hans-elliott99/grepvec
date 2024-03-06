@@ -7,7 +7,7 @@
 #include <Rinternals.h>
 
 int init_regex(SEXP ndl, regex_t *rgx_empty, int flags, ttype_t tt);
-int strrgx(const char **str, regex_t *rgx);
-int wstrrgx(const wchar_t **str, regex_t *rgx);
+int strrgx(const char *str, regex_t *rgx);
+int wstrrgx(const wchar_t *str, regex_t *rgx);
 
 #endif // grepvec_REGEXP_H

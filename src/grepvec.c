@@ -39,7 +39,7 @@ StringCache string_cache = {NULL, NULL, 0, use_char};
         (changing the definition to void ... in init.c too doesn't fix this)
 */
 SEXP C_on_exit_grepvec(void) {
-    free_cache(&string_cache);
+    free_str_cache(&string_cache);
     Riconv_cleanup();
     return R_NilValue;
 }
@@ -69,6 +69,8 @@ ttype_t get_ttype(SEXP ndls, SEXP hays, int fixed) {
     Nn = XLENGTH(ndls);
     Nh = XLENGTH(hays);
     max = (Nn > Nh) ? Nn : Nh;
+    // int maxcheck = 10;
+    // max = (max > maxcheck) ? maxcheck : max;
     // if (ncheck)
         // max = (max > ncheck) ? ncheck : max;
     int utf8_n = 0, utf8_h = 0;
@@ -100,8 +102,6 @@ ttype_t get_ttype(SEXP ndls, SEXP hays, int fixed) {
 }
 
 
-
-
 SEXP C_grepvec(SEXP needles,
                SEXP haystck,
                SEXP ignorecase,
@@ -112,7 +112,7 @@ SEXP C_grepvec(SEXP needles,
                SEXP keepdim) {
     const R_xlen_t Nn = XLENGTH(needles);
     const R_xlen_t Nh = XLENGTH(haystck);
-    const int fx = asInteger(fixed);
+    const int fxd = asInteger(fixed);
     const int bytes = asInteger(usebytes);
     const int inv = asInteger(invert);
     const int mrule = asInteger(matchrule);
@@ -125,7 +125,7 @@ SEXP C_grepvec(SEXP needles,
     /*determine encoding of inputs*/
     ttype_t tt = use_char;
     if (!bytes)
-        tt = get_ttype(needles, haystck, fx);
+        tt = get_ttype(needles, haystck, fxd);
     if (tt == use_wchar) {
         Rprintf("using wchar\n");
     } else if (tt == use_utf8) {
@@ -138,51 +138,46 @@ SEXP C_grepvec(SEXP needles,
 
     /*result vector - list of integer vectors*/
     SEXP output = PROTECT(allocVector(VECSXP, Nn));
+    /*cache for translated haystacks*/
+    init_str_cache(&string_cache, Nh, tt);
 
-    R_xlen_t i, j, nmatch, res;
-    int skip;
-    regex_t rgx;
-    // wchar_t *ndl_w = NULL;
-    char    *ndl_s = NULL;
+    R_xlen_t i, j, nmatch;
+    int skip, res;
+    char *ndl_str = NULL;
+    regex_t ndl_rgx;
     SEXP indices;
-    init_cache(&string_cache, Nh, tt);
     /*
         iterate and compare compiled regex j with string i
     */
     for (j=0; j < Nn; ++j) {
         if ((j + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
-        skip = (fx) ? 0:init_regex(STRING_ELT(needles, j), &rgx, rgx_flags, tt);
+        skip = (fxd) ? 0 : init_regex(STRING_ELT(needles, j), &ndl_rgx, rgx_flags, tt);
         if (skip || STRING_ELT(needles, j) == NA_STRING) {
             SET_VECTOR_ELT(output, j, allocVector(INTSXP, 0));
             continue;
         }
-        indices = PROTECT(allocVector(INTSXP, Nm));
-        if (fx) {
-            // if (tt == use_wchar) {
-            //     ndl_w = (wchar_t *) RwtransChar(STRING_ELT(needles, j));
-            // } else {
-            ndl_s = (char *) do_translate_char(STRING_ELT(needles, j), tt);
-        }
+        if (fxd)
+            ndl_str = (char *) do_translate_char(STRING_ELT(needles, j), tt);
 
+        indices = PROTECT(allocVector(INTSXP, Nm));
         nmatch = 0;   // num matches for pattern j
         for (i=0; i < Nh; ++i) {
             if (STRING_ELT(haystck, i) == NA_STRING) {
                 continue;
             }
-            update_cache(STRING_ELT(haystck, i), &string_cache, i);
-            if (fx) {
-                res = (strstr(string_cache.arr[i], ndl_s) != NULL);
+            update_str_cache(STRING_ELT(haystck, i), &string_cache, i);
+            if (fxd) {
+                res = (strstr(string_cache.arr[i], ndl_str) != NULL);
             } else {
-                res = (tt == use_wchar) ? wstrrgx(&string_cache.warr[i], &rgx):
-                                          strrgx(&string_cache.arr[i], &rgx);
+                res = (tt == use_wchar) ? wstrrgx(string_cache.warr[i], &ndl_rgx)
+                                        : strrgx(string_cache.arr[i], &ndl_rgx);
             }
-            if (res && !inv) {
-                INTEGER(indices)[nmatch] = i + 1; // R's idx for current hay
-                ++nmatch;
+            if (res ^ inv) {
+                INTEGER(indices)[nmatch++] = i + 1; // R's idx for current hay
                 if (mrule == RETURNFIRST) break;
             }
         }
-        if (!fx) tre_regfree(&rgx);
+        if (!fxd) tre_regfree(&ndl_rgx);
         if (keep) {
             for (i=nmatch; i < Nh; ++i) INTEGER(indices)[i] = NA_INTEGER;
             nmatch = Nh;

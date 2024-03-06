@@ -211,7 +211,6 @@ suppressWarnings({
 })
 difftime(Sys.time(), t0)
 
-
 ```
 
 
@@ -297,8 +296,13 @@ cat("regex:", p, "\n")
 
 ## Encodings
 
-In R, characters can be represented using many different encodings, often dependent on the user's locale and operating system.  
-In the example below,  `pat = "première"` has encoding UTF8 (because that's the default in my locale) but the string stored in `lat1` has a Latin-1 encoding.  
+
+R supports many differenct character encodings. When you load text data into R, R has no way to know for certain what encoding scheme the bytes in its memory correspond to.  
+Grepvec takes care to behave similairly to grep in dealing with character encodings. If the encoding of a string has been set (e.g., via `iconv`, `Encoding`, or something else), grepvec can treat the string appropriately.
+
+In the example below,  `pat = "première"` has encoding UTF8 (because that's the default in my locale) but the string stored in `lat1` has a Latin-1 encoding. If the encoding of `lat1` is not identified before it is passed to grepvec or grep, these functions will error because they cannot determine how the characters should be treated.  
+Fundamentally, although the UTF8-encode "première" and the Latin-1 version appear identical on our screens, different sequences of bytes are used to represent the strings.
+
 
 ```{r}
 Sys.getlocale("LC_CTYPE")
@@ -319,7 +323,11 @@ cat("Pattern:", pat, "\nEncoding:", Encoding(pat), "\n")
 grepvec(pat, lat1)
 grep(pat, lat1)
 
+grep(pat, lat1, useBytes = TRUE)
+grepvec(pat, lat1, use_bytes = TRUE)
 
+charToRaw(pat)
+charToRaw(lat1)
 ```
 
 As you can see above, grep was able to recognize that the pattern is in the string, but grepvec was not.  
@@ -369,10 +377,17 @@ grepvec(p, toupper(lat1), fixed = TRUE)
 
 TODO: what if text encoding is very strange, will it get handled? try to break things...
 
-TODO: okay, so the encoding issues are well on their way to being resolved, but translating every string to UTF8 makes grepvec about 2x slower, so that we're back to the speed of base R solutions. Figure out how to speed up!
-    - Want to test both needle and haystack vectors for non-ascii strings, in which case we use wchar_t
-        - can test X% of each vector and let that be an option
-    - If none detected, can proceed with using char
-    - Can also add an encoding argument if user wants all strings to be treated as such without translation
+```{r}
+res <- lapply(words, grep, x = txt[1:500])
+
+names(res) <- seq_along(res) # stack requires names
+byhay <- with(utils::stack(res), split(ind, values))
+# expand list to be length of haystacks
+out <- lapply(as.character(seq(1, 500)), \(hay_ix) {
+    ixs <- byhay[[hay_ix]] # get needle indices for given haystack
+    # ixs is null if there were no matches for this needle
+    as.integer(ixs)
+})
 
 
+```

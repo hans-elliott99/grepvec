@@ -1,215 +1,89 @@
-#include <R.h>
-#include <Rinternals.h>
-#include "tre/tre.h"
+SEXP C_grepvec(SEXP needles,
+               SEXP haystck,
+               SEXP ignorecase,
+               SEXP fixed,
+               SEXP usebytes,
+               SEXP invert,
+               SEXP matchrule,
+               SEXP keepdim) {
+    const R_xlen_t Nn = XLENGTH(needles);
+    const R_xlen_t Nh = XLENGTH(haystck);
+    const int fxd = asInteger(fixed);
+    const int bytes = asInteger(usebytes);
+    const int inv = asInteger(invert);
+    const int mrule = asInteger(matchrule);
+    const int keep = asInteger(keepdim);
+    int rgx_flags = REG_EXTENDED|REG_NOSUB;
+    if (asInteger(ignorecase)) rgx_flags |= REG_ICASE;
+    /*initial length of match vector for each needle*/
+    const R_xlen_t Nm = (!keep && mrule != RETURNALL) ? 1 : Nh;
 
-
-typedef int regex_t;
-typedef int pcre;
-typedef int pcre_extra;
-
-SEXP do_grep(SEXP call, SEXP op, SEXP args, SEXP env)
-{
-    SEXP pat, text, ind, ans;
-    regex_t reg;
-    R_xlen_t i, j, n;
-    int nmatches = 0, ov[3], rc;
-    int igcase_opt, value_opt, perl_opt, fixed_opt, useBytes, invert;
-    const char *spat = NULL;
-    pcre *re_pcre = NULL /* -Wall */;
-    pcre_extra *re_pe = NULL;
-    const unsigned char *tables = NULL /* -Wall */;
-    Rboolean use_UTF8 = FALSE, use_WC = FALSE;
-    const void *vmax;
-    int nwarn = 0;
-
-    checkArity(op, args);
-    pat = CAR(args); args = CDR(args);
-    text = CAR(args); args = CDR(args);
-    igcase_opt = asLogical(CAR(args)); args = CDR(args);
-    value_opt = asLogical(CAR(args)); args = CDR(args);
-    perl_opt = asLogical(CAR(args)); args = CDR(args);
-    fixed_opt = asLogical(CAR(args)); args = CDR(args);
-    useBytes = asLogical(CAR(args)); args = CDR(args);
-    invert = asLogical(CAR(args));
-    if (igcase_opt == NA_INTEGER) igcase_opt = 0;
-    if (value_opt == NA_INTEGER) value_opt = 0;
-    if (perl_opt == NA_INTEGER) perl_opt = 0;
-    if (fixed_opt == NA_INTEGER) fixed_opt = 0;
-    if (useBytes == NA_INTEGER) useBytes = 0;
-    if (invert == NA_INTEGER) invert = 0;
-    if (fixed_opt && igcase_opt)
-	warning(_("argument '%s' will be ignored"), "ignore.case = TRUE");
-    if (fixed_opt && perl_opt) {
-	warning(_("argument '%s' will be ignored"), "perl = TRUE");
-	perl_opt = 0;
-    }
-
-    if (!isString(pat) || LENGTH(pat) < 1)
-	error(_("invalid '%s' argument"), "pattern");
-    if (LENGTH(pat) > 1)
-	warning(_("argument '%s' has length > 1 and only the first element will be used"), "pattern");
-
-    if (!isString(text))
-	error(_("invalid '%s' argument"), "text");
-
-    n = XLENGTH(text);
-    if (STRING_ELT(pat, 0) == NA_STRING) {
-	    if (value_opt) {
-	        SEXP nmold = PROTECT(getAttrib(text, R_NamesSymbol));
-	        PROTECT(ans = allocVector(STRSXP, n));
-	        for (i = 0; i < n; i++)  SET_STRING_ELT(ans, i, NA_STRING);
-	        if (!isNull(nmold))
-	    	setAttrib(ans, R_NamesSymbol, duplicate(nmold));
-	        UNPROTECT(2); /* ans, nmold */
-	    } else {
-	        ans = allocVector(INTSXP, n);
-	        for (i = 0; i < n; i++)  INTEGER(ans)[i] = NA_INTEGER;
-	    }
-	    return ans;
-    }
-
-    if (!useBytes) {
-	Rboolean onlyASCII = IS_ASCII(STRING_ELT(pat, 0));
-	if (onlyASCII)
-	    for (i = 0; i < n; i++) {
-	    	if(STRING_ELT(text, i) == NA_STRING) continue;
-	    	if (!IS_ASCII(STRING_ELT(text, i))) {
-	    	    onlyASCII = FALSE;
-	    	    break;
-	    	}
-	    }
-	    useBytes = onlyASCII;
-    }
-    if (!useBytes) {
-	Rboolean haveBytes = IS_BYTES(STRING_ELT(pat, 0));
-	if (!haveBytes)
-	    for (i = 0; i < n; i++)
-		if (IS_BYTES(STRING_ELT(text, i))) {
-		    haveBytes = TRUE;
-		    break;
-		}
-	    if(haveBytes) {
-	        useBytes = TRUE;
-	    }
-    }
-    if (!useBytes) {
-	/* As from R 2.10.0 we use UTF-8 mode in PCRE in all MBCS locales */
-	    if (IS_UTF8(STRING_ELT(pat, 0))) use_UTF8 = TRUE;
-	    if (!use_UTF8)
-	        for (i = 0; i < n; i++)
-	    	    if (IS_UTF8(STRING_ELT(text, i))) {
-	    	        use_UTF8 = TRUE;
-	    	        break;
-	    	    }
-    }
-
-    if (!fixed_opt) {
-	    /* if we have non-ASCII text in a DBCS locale, we need to use wchar */
-	    use_WC = use_UTF8; use_UTF8 = FALSE;
-    }
-    if (useBytes)
-	    spat = CHAR(STRING_ELT(pat, 0));
-    else if (use_WC) ; // has to be a regex
-    else if (use_UTF8) {
-	    spat = translateCharUTF8(STRING_ELT(pat, 0));
-	    if (!utf8Valid(spat)) error(_("regular expression is invalid UTF-8"));
+    /*determine encoding of inputs*/
+    ttype_t tt = use_char;
+    if (!bytes)
+        tt = get_ttype(needles, haystck, fxd);
+    if (tt == use_wchar) {
+        Rprintf("using wchar\n");
+    } else if (tt == use_utf8) {
+        Rprintf("using utf8\n");
+    } else if (tt == use_native) {
+        Rprintf("using native\n");
     } else {
-	    spat = translateChar(STRING_ELT(pat, 0));
-	    if (mbcslocale && !mbcsValid(spat))
-	        error(_("regular expression is invalid in this locale"));
+        Rprintf("using char\n");
     }
 
-    if (fixed_opt) ;
-    } else {
-	    int cflags = REG_NOSUB | REG_EXTENDED;
-	    if (igcase_opt) cflags |= REG_ICASE;
-	    if (!use_WC)
-	        rc = tre_regcompb(&reg, spat, cflags);
-	    else
-	        rc = tre_regwcomp(&reg, wtransChar(STRING_ELT(pat, 0)), cflags);
-	    if (rc) reg_report(rc, &reg, spat);
+    /*result vector - list of integer vectors*/
+    SEXP output = PROTECT(allocVector(VECSXP, Nn));
+    /*cache for translated haystacks*/
+    init_str_cache(&string_cache, Nh, tt);
+
+    R_xlen_t i, j, nmatch;
+    int skip, res;
+    char *ndl_s = NULL;
+    regex_t rgx;
+    SEXP indices;
+    /*
+        iterate and compare compiled regex j with string i
+    */
+    for (j=0; j < Nn; ++j) {
+        if ((j + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
+        skip = (fxd) ? 0 : init_regex(STRING_ELT(needles, j), &rgx, rgx_flags, tt);
+        if (skip || STRING_ELT(needles, j) == NA_STRING) {
+            SET_VECTOR_ELT(output, j, allocVector(INTSXP, 0));
+            continue;
+        }
+        indices = PROTECT(allocVector(INTSXP, Nm));
+        if (fxd)
+            ndl_s = (char *) do_translate_char(STRING_ELT(needles, j), tt);
+
+        nmatch = 0;   // num matches for pattern j
+        for (i=0; i < Nh; ++i) {
+            if (STRING_ELT(haystck, i) == NA_STRING) {
+                continue;
+            }
+            update_str_cache(STRING_ELT(haystck, i), &string_cache, i);
+            if (fxd) {
+                res = (strstr(string_cache.arr[i], ndl_s) != NULL);
+            } else {
+                res = (tt == use_wchar) ? wstrrgx(&string_cache.warr[i], &rgx):
+                                          strrgx(&string_cache.arr[i], &rgx);
+            }
+            if (res ^ inv) {
+                INTEGER(indices)[nmatch++] = i + 1; // R's idx for current hay
+                if (mrule == RETURNFIRST) break;
+            }
+        }
+        if (!fxd) tre_regfree(&rgx);
+        if (keep) {
+            for (i=nmatch; i < Nh; ++i) INTEGER(indices)[i] = NA_INTEGER;
+            nmatch = Nh;
+        }
+        // rm extra space allocated to match vec
+        SETLENGTH(indices, nmatch);
+        SET_VECTOR_ELT(output, j, indices);
+        UNPROTECT(1); // indices
     }
 
-    PROTECT(ind = allocVector(LGLSXP, n));
-    vmax = vmaxget();
-    for (i = 0 ; i < n ; i++) {
-//	if ((i+1) % NINTERRUPT == 0) R_CheckUserInterrupt();
-	    LOGICAL(ind)[i] = 0;
-	    if (STRING_ELT(text, i) != NA_STRING) {
-	        const char *s = NULL;
-	        if (useBytes)
-	    	    s = CHAR(STRING_ELT(text, i));
-	        else if (use_WC) ;
-	        else if (use_UTF8) {
-	    	    s = translateCharUTF8(STRING_ELT(text, i));
-	    	    if (!utf8Valid(s)) {
-	    	        if(nwarn++ < NWARN)
-	    	    	warning(_("input string %d is invalid UTF-8"), i+1);
-	    	        continue;
-	    	    }
-	        } else {
-	    	    s = translateChar(STRING_ELT(text, i));
-	    	    if (mbcslocale && !mbcsValid(s)) {
-	    	        if(nwarn++ < NWARN)
-	    	    	warning(_("input string %d is invalid in this locale"), i+1);
-	    	        continue;
-	    	    }
-	        }
-	        if (fixed_opt)
-	    	    LOGICAL(ind)[i] = fgrep_one(spat, s, useBytes, use_UTF8, NULL) >= 0;
-	        } else {
-	    	    if (!use_WC)
-	    	        rc = tre_regexecb(&reg, s, 0, NULL, 0);
-	    	    else
-	    	        rc = tre_regwexec(&reg, wtransChar(STRING_ELT(text, i)),
-	    	    		      0, NULL, 0);
-	    	    if (rc == 0) LOGICAL(ind)[i] = 1;
-	        }
-	    }
-	    vmaxset(vmax);
-	    if (invert ^ LOGICAL(ind)[i]) nmatches++;
-    }
-
-    if (fixed_opt);
-    else tre_regfree(&reg);
-
-    if (PRIMVAL(op)) {/* grepl case */
-	    UNPROTECT(1); /* ind */
-	    return ind;
-    }
-
-    if (value_opt) {
-	    SEXP nmold = PROTECT(getAttrib(text, R_NamesSymbol)), nm;
-	    PROTECT(ans = allocVector(STRSXP, nmatches));
-	    for (i = 0, j = 0; i < n ; i++)
-	        if (invert ^ LOGICAL(ind)[i])
-	    	SET_STRING_ELT(ans, j++, STRING_ELT(text, i));
-	    /* copy across names and subset */
-	    if (!isNull(nmold)) {
-	        nm = allocVector(STRSXP, nmatches);
-	        for (i = 0, j = 0; i < n ; i++)
-	    	if (invert ^ LOGICAL(ind)[i])
-	    	    SET_STRING_ELT(nm, j++, STRING_ELT(nmold, i));
-	        setAttrib(ans, R_NamesSymbol, nm);
-	    }
-	    UNPROTECT(2); /* ans, nmold */
-    } else {
-#ifdef LONG_VECTOR_SUPPORT
-	if (n > INT_MAX) {
-	    ans = allocVector(REALSXP, nmatches);
-	    j = 0;
-	    for (i = 0 ; i < n ; i++)
-		if (invert ^ LOGICAL(ind)[i]) REAL(ans)[j++] = (double)(i + 1);
-	} else
-#endif
-	{
-	    ans = allocVector(INTSXP, nmatches);
-	    j = 0;
-	    for (i = 0 ; i < n ; i++)
-		if (invert ^ LOGICAL(ind)[i])
-		    INTEGER(ans)[j++] = (int) (i + 1);
-	}
-    }
-    UNPROTECT(1); /* ind */
-    return ans;
+    UNPROTECT(1); // output
+    return output;
 }

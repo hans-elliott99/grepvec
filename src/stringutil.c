@@ -50,7 +50,7 @@ void RFreeStringBuffer(RStringBuffer *buf) {
 *  on the encoding of the string.
 */
 const char *do_translate_char(SEXP x, ttype_t tt) {
-    if (TYPEOF(x) != CHARSXP) error("x must be a character vector");
+    // if (TYPEOF(x) != CHARSXP) error("x must be a character vector");
     switch (tt) {
     case (use_utf8):
         return translateCharUTF8(x);
@@ -66,7 +66,7 @@ const char *do_translate_char(SEXP x, ttype_t tt) {
 
 
 /*          STRING CACHE            */
-void init_cache(StringCache *cache, R_xlen_t n, ttype_t ttype) {
+void init_str_cache(StringCache *cache, R_xlen_t n, ttype_t ttype) {
     if (ttype == use_wchar) {
         cache->warr = (const wchar_t**)R_Calloc(n, wchar_t*);
     } else {
@@ -77,11 +77,9 @@ void init_cache(StringCache *cache, R_xlen_t n, ttype_t ttype) {
 }
 
 
-void update_cache(SEXP ndl, StringCache *cache, R_xlen_t idx) {
-    if (TYPEOF(ndl) != CHARSXP) error("x must be a character vector");
-    // if (idx >= cache->n || idx < 0) error("index out of bounds");
-    if (cache->tt == use_wchar) {
-        if (cache->warr[idx] != NULL) return;
+void update_str_cache(SEXP ndl, StringCache *cache, R_xlen_t idx) {
+    // if (TYPEOF(ndl) != CHARSXP) error("x must be a character vector");
+    if (cache->tt == use_wchar && cache->warr[idx] == NULL) {
         cache->warr[idx] = RwtransChar(ndl);
     } else {
         if (cache->arr[idx] != NULL) return;
@@ -90,11 +88,10 @@ void update_cache(SEXP ndl, StringCache *cache, R_xlen_t idx) {
 }
 
 
-void free_cache(StringCache *cache) {
+void free_str_cache(StringCache *cache) {
     // R_Calloc must be R_Free'd
-    // if (cache->n == 0) return;
-    if (cache->tt == use_wchar) {
-        if (cache->warr != NULL) R_Free(cache->warr);
+    if (cache->tt == use_wchar && cache->warr != NULL) {
+        R_Free(cache->warr);
     } else {
         if (cache->arr != NULL) R_Free(cache->arr);
     }
@@ -102,29 +99,3 @@ void free_cache(StringCache *cache) {
     cache->arr = NULL;
     cache->n = 0;
 }
-
-
-
-
-
-
-
-
-/*          WIDE STRING CACHE            */
-void init_Wcache(WideStringCache *cache, R_xlen_t n) {
-    cache->arr = (const wchar_t **)R_Calloc(n, wchar_t*);
-    cache->n = n;
-}
-
-void update_Wcache(SEXP ndl, WideStringCache *cache, R_xlen_t idx) {
-    // if (idx >= cache->n || idx < 0) error("index out of bounds");
-    if (cache->arr[idx] != NULL) return;
-    cache->arr[idx] = RwtransChar(ndl);
-}
-
-void free_Wcache(WideStringCache *cache) {
-    if (cache->n == 0) return;
-    R_Free(cache->arr); // R_Calloc must be R_Free'd
-    cache->n = 0;
-}
-
