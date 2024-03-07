@@ -124,7 +124,8 @@ static int RtranslateToWchar(const char *ans,
 }
 
 const wchar_t *RwtransChar(SEXP x, int *err) {
-    if (TYPEOF(x) != CHARSXP) error("x must be a character vector");
+    // if (TYPEOF(x) != CHARSXP) error("x must be a character vector");
+    (*err) = 0;
     nttype_t t = RwneedsTranslation(x);
     if (t == NT_FROM_ASCII)
         return RwfromAscii(CHAR(x), LENGTH(x));
@@ -152,10 +153,10 @@ void Riconv_cleanup(void) {
 
 
 
-void Riconv_warning(int errcode, R_xlen_t idx, int which) {
-    char whichvec[10];
-    strcpy(whichvec, (which) ? "haystack" : "needle");
-    ++idx;
+void Riconv_warning(int errcode, R_xlen_t idx, int is_haystack) {
+    char whichvec[9];
+    strcpy(whichvec, (is_haystack) ? "haystack" : "needle");
+    ++idx; // R index
     switch (errcode)
     {
     case EILSEQ:

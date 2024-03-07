@@ -35,17 +35,17 @@
 /*
    HE: add additional definitions used in the modified TRE library that
       are defined in the R source at src/gnuwin32/fixed/h/config.h
+      These are needed to use TRE_WCHAR
 */
-
-/* Define to 1 if you have the `mbrtowc' function. */
-#define HAVE_MBRTOWC 1
-// #undef HAVE_MBRTOWC //HE
-
-/* Define to 1 if the system has the type `mbstate_t'. */
-#define HAVE_MBSTATE_T 1
-// #undef HAVE_MBSTATE_T //HE
 
 #ifdef TRE_WCHAR
 #include <wchar.h> // HE
 #include <wctype.h> // HE
-#endif /*TRE_WCHAR*/
+
+/* Define to 1 if you have the `mbrtowc' function. */
+#define HAVE_MBRTOWC 1
+
+/* Define to 1 if the system has the type `mbstate_t'. */
+#define HAVE_MBSTATE_T 1
+
+#endif // TRE_WCHAR

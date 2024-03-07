@@ -337,16 +337,33 @@ grepvec(pat, lat1, use_bytes = TRUE)
 
 ```{r}
 Encoding(pat)
-grepvec(pat, iconv(lat1, to = "UTF8"))
-
 Encoding(lat1)
+grepvec(pat, iconv(lat1, to = "UTF-8"))
+
 grepvec(iconv(pat, to = "latin1"), lat1)
 
-grepvec(iconv(pat, to = "UTF8"), iconv(lat1, to = "UTF8"), fixed = TRUE)
-
+grepvec(iconv(pat, to = "UTF-8"), iconv(lat1, to = "UTF-8"), fixed = TRUE)
+grepvec(iconv(pat, to = "UTF-8"), iconv(lat1, to = "UTF-8"), fixed = FALSE)
 
 grep("premi.re", lat1)
 grepvec("premi.re", lat1)
+
+# if the character encodings don't match but the characters are equal the regex
+# should still work...
+
+# these strings are encoded differently, and thus their bytes do not match
+pat <- iconv("prem.ère", to = "latin1")
+x <- "première"
+# accented e (ie, "e with grave") is a single byte in latin1, 2 bytes in utf8
+charToRaw(pat)
+charToRaw(x) 
+
+grep(pat, x)
+grepvec(pat, x)
+
+grep(pat, iconv(x, to = "latin1"))
+grepvec(pat, iconv(x, to = "latin1"))
+
 ```
 
 
@@ -362,12 +379,17 @@ grepvec(p, toupper(lat1), fixed = TRUE)
 (ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/koi8_r.txt")[3])
 grep("Cyr", ex)
 grepvec("Cyr", ex)
+grep(ex, ex)
+grepvec(ex, "c")
 
 (ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/utf8.txt"))
 Encoding(ex) <- "UTF-8"
 
 grep("K", ex)
 grepvec("K", ex)
+
+charToRaw("K")
+charToRaw("К")
 
 grep("Кириллица", ex)
 grepvec("Кириллица", ex)

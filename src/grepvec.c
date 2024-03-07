@@ -42,6 +42,69 @@ SEXP C_on_exit_grepvec(void) {
 }
 
 
+static Rboolean only_ascii(SEXP x, R_xlen_t len) {
+    R_xlen_t i;
+
+    for(i = 0; i < len; i++) 
+	if (!IS_ASCII(STRING_ELT(x, i)) && STRING_ELT(x, i) != NA_STRING)  
+	    return FALSE;
+    return TRUE;
+}
+
+
+static Rboolean have_bytes(SEXP x, R_xlen_t len) {
+    R_xlen_t i;
+    for(i = 0; i < len; i++) 
+	    if (IS_BYTES(STRING_ELT(x, i))) return TRUE;
+    return FALSE;
+}
+
+static Rboolean have_utf8(SEXP x, R_xlen_t len)
+{
+    R_xlen_t i;
+
+    for(i = 0; i < len; i++) 
+	    if (IS_UTF8(STRING_ELT(x, i))) return TRUE;
+    return FALSE;
+}
+
+static Rboolean have_latin1(SEXP x, R_xlen_t len)
+{
+    R_xlen_t i;
+
+    for(i = 0; i < len; i++) 
+	    if (IS_LATIN1(STRING_ELT(x, i))) return TRUE;
+    return FALSE;
+}
+
+
+static ttype_t get_ttype(SEXP ndl, SEXP hay, int fixed, int bytes) {
+    int utf8 = 0;
+    R_xlen_t Nn = XLENGTH(ndl), Nh = XLENGTH(hay);
+    if (!bytes)
+        bytes = only_ascii(ndl, Nn) && only_ascii(hay, Nh);
+    if (!bytes)
+        bytes = have_bytes(ndl, Nn) || have_bytes(hay, Nh);
+    if (!bytes) {
+        if (!fixed) utf8 = 1; // return use_wchar
+        if (!utf8)
+            utf8 = have_utf8(ndl, Nn) || have_utf8(hay, Nh);
+        if (!utf8)
+            utf8 = have_latin1(ndl, Nn) || have_latin1(hay, Nh);
+    }
+    // so if regex, we either use_char or use_wchar
+    // (if !fixed, utf8 = 1, if !fixed && utf8, use_wchar)
+    if (bytes)
+        return use_char;
+    if (!fixed && utf8)
+        return use_wchar;
+    // if (fixed && utf8)
+    //     return use_utf8;
+    // return use_native;
+    return use_utf8; // default to always returning use_utf8 so its not locale dependent
+}
+
+
 
 /*
  * if all ascii:
@@ -61,7 +124,7 @@ SEXP C_on_exit_grepvec(void) {
  * TODO: probably don't want to check all of the strings.
  * 
 */
-ttype_t get_ttype(SEXP ndls, SEXP hays, int fixed) {
+ttype_t old_get_ttype(SEXP ndls, SEXP hays, int fixed) {
     R_xlen_t i, max, Nn, Nh;
     Nn = XLENGTH(ndls);
     Nh = XLENGTH(hays);
@@ -83,7 +146,7 @@ ttype_t get_ttype(SEXP ndls, SEXP hays, int fixed) {
             if (!IS_ASCII(STRING_ELT(hays, i))) notascii_h = 1;
             if (IS_UTF8(STRING_ELT(hays, i))) utf8_h = 1;
         }
-        if ((utf8_n && utf8_h) || (notascii_n && notascii_h)) {
+        if ((utf8_n || utf8_h) || (notascii_n && notascii_h)) {
             break;
         }
     }
@@ -99,6 +162,7 @@ ttype_t get_ttype(SEXP ndls, SEXP hays, int fixed) {
 }
 
 
+
 SEXP C_grepvec(SEXP needles,
                SEXP haystck,
                SEXP ignorecase,
@@ -109,20 +173,18 @@ SEXP C_grepvec(SEXP needles,
                SEXP keepdim) {
     const R_xlen_t Nn = XLENGTH(needles);
     const R_xlen_t Nh = XLENGTH(haystck);
-    const int fxd = asInteger(fixed);
-    const int bytes = asInteger(usebytes);
-    const int inv = asInteger(invert);
-    const int mrule = asInteger(matchrule);
-    const int keep = asInteger(keepdim);
-    int rgx_flags = REG_EXTENDED|REG_NOSUB;
-    if (asInteger(ignorecase)) rgx_flags |= REG_ICASE;
+    const int fxd = asLogical(fixed);
+    const int bytes = asLogical(usebytes);
+    const int inv = asLogical(invert);
+    const int mrule = asLogical(matchrule);
+    const int keep = asLogical(keepdim);
+    int rgx_flags = REG_NOSUB|REG_EXTENDED;
+    if (asLogical(ignorecase)) rgx_flags |= REG_ICASE;
     /*initial length of match vector for each needle*/
     const R_xlen_t Nm = (!keep && mrule != RETURNALL) ? 1 : Nh;
 
-    /*determine encoding of inputs*/
-    ttype_t tt = use_char;
-    if (!bytes)
-        tt = get_ttype(needles, haystck, fxd);
+    /*determine encoding of inputs and get conversion type*/
+    ttype_t tt = get_ttype(needles, haystck, fxd, bytes);
     if (tt == use_wchar) {
         Rprintf("using wchar\n");
     } else if (tt == use_utf8) {
@@ -146,11 +208,12 @@ SEXP C_grepvec(SEXP needles,
     int skip, res;
     char *ndl_str = NULL;
     SEXP indices;
-    int *ind_ptr = INTEGER(indices);
+    int *ind_ptr;
     /*
         iterate and compare compiled regex j with string i
     */
     for (j=0; j < Nn; ++j) {
+        Rprintf("needle: %s\n", CHAR(STRING_ELT(needles, j)));
         if ((j + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
         skip = (fxd) ? 0 : init_regex(STRING_ELT(needles, j), &rgxo, j);
         if (skip || STRING_ELT(needles, j) == NA_STRING) {
@@ -161,6 +224,7 @@ SEXP C_grepvec(SEXP needles,
             ndl_str = (char *) do_translate_char(STRING_ELT(needles, j), tt);
 
         indices = PROTECT(allocVector(INTSXP, Nm));
+        ind_ptr = INTEGER(indices);
         nmatch = 0;   // num matches for pattern j
         for (i=0; i < Nh; ++i) {
             if (STRING_ELT(haystck, i) == NA_STRING) {
@@ -175,13 +239,13 @@ SEXP C_grepvec(SEXP needles,
                                         : strrgx(string_cache.arr[i], &rgxo.rgx);
             }
             if (res ^ inv) {
-                INTEGER(indices)[nmatch++] = i + 1; // R's idx for current hay
+                ind_ptr[nmatch++] = i + 1; // R's idx for current hay
                 if (mrule == RETURNFIRST) break;
             }
         }
         if (!fxd) tre_regfree(&rgxo.rgx);
         if (keep) {
-            for (i=nmatch; i < Nh; ++i) INTEGER(indices)[i] = NA_INTEGER;
+            for (i=nmatch; i < Nh; ++i) ind_ptr[i] = NA_INTEGER;
             nmatch = Nh;
         }
         // rm extra space allocated to match vec
