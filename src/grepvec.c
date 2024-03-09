@@ -78,6 +78,7 @@ static Rboolean have_latin1(SEXP x, R_xlen_t len)
 }
 
 
+// TODO: can I speed this up by iterating over both together?
 static ttype_t get_ttype(SEXP ndl, SEXP hay, int fixed, int bytes) {
     int utf8 = 0;
     R_xlen_t Nn = XLENGTH(ndl), Nh = XLENGTH(hay);
@@ -178,7 +179,7 @@ SEXP C_grepvec(SEXP needles,
     const int inv = asLogical(invert);
     const int mrule = asLogical(matchrule);
     const int keep = asLogical(keepdim);
-    int rgx_flags = REG_NOSUB|REG_EXTENDED;
+    int rgx_flags = REG_EXTENDED | REG_NOSUB;
     if (asLogical(ignorecase)) rgx_flags |= REG_ICASE;
     /*initial length of match vector for each needle*/
     const R_xlen_t Nm = (!keep && mrule != RETURNALL) ? 1 : Nh;
@@ -197,7 +198,7 @@ SEXP C_grepvec(SEXP needles,
 
     /*output a list of integer vectors*/
     SEXP output = PROTECT(allocVector(VECSXP, Nn));
-    /*cache for translated haystacks*/
+    /*cache for haystacks*/
     init_str_cache(&string_cache, Nh, tt);
     /*regex info struct*/
     struct RegexInfo rgxo = {{0},       // regex_t
@@ -213,7 +214,6 @@ SEXP C_grepvec(SEXP needles,
         iterate and compare compiled regex j with string i
     */
     for (j=0; j < Nn; ++j) {
-        Rprintf("needle: %s\n", CHAR(STRING_ELT(needles, j)));
         if ((j + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
         skip = (fxd) ? 0 : init_regex(STRING_ELT(needles, j), &rgxo, j);
         if (skip || STRING_ELT(needles, j) == NA_STRING) {
@@ -257,55 +257,3 @@ SEXP C_grepvec(SEXP needles,
     UNPROTECT(1); // output
     return output;
 }
-
-/*
-do_grep, src/main/grep.c
-
-DETERMINE ENCODING INFO
-- PATTERN = NA: return vector of NA (integer or string if value = TRUE)
-- while useBytes = FALSE:
-	- check if PATTERN is only ASCII. If TRUE, check if all TEXTs are also ASCII
-		- if TRUE, useBytes = TRUE, next
-		- if FALSE, useBytes = FALSE
-	- check if PATTERN contains bytes. If FALSE, check if any TEXTs have bytes.
-		- if TRUE, useBytes = TRUE, next
-		- if FALSE, usebytes = FALSE
-	- check if PATTERN is UTF8. If FALSE, check if any TEXTs are UTF8
-		- if TRUE, use_UTF8 = TRUE
-		- if FALSE, use_UTF8 = FALSE
-    - if useUTF8 = TRUE and if not fixed and not PERL (so using TRE to do a regex search):
-    	- use_WC = TRUE
-    	- use_UTF8 = FALSE
-
-COMPILE REGEX
-- if useBytes = TRUE:
-	- leave the pattern alone (use CHAR to access it)
-- else if use_WC = TRUE
-	- use translateChar to access the pattern (translate from current locale)
-
-- if fixed:
-	- do nothing
-- if PERL:
-	- if use_UTF8 and not useBytes, PCRE_UTF8 flag is set
-	- compile regex...
-- if TRE (default regex engine):
-	- if use_WC (because UTF8 string was found), compile with tre_regwcomp
-	- else, compile with tre_recompb (because useBytes = TRUE)
-
-
-ITERATE THROUGH TEXTs:
-- if TEXT is NA, skip
-- if useBytes:
-	- use CHAR to access TEXT (no translation), use tre_regexecb to execute regex
-- if use_WC (because use_UTF8) is true
-
-
-If pattern is only ascii, we still test to make sure all of text is only ascii
-    - if all ascii, useBytes
-If either pattern or text has bytes, useBytes
-If patten is utf8, we still test to make sure all of text is utf8
-    - if all utf8, useUTF8
-
-
-
-*/

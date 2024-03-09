@@ -54,6 +54,10 @@ typedef wint_t tre_cint_t;
   Solaris-sparcv9   WCHAR_MAX = INT32_MAX
   Linux amd64       WCHAR_MAX = INT32_MAX
 */
+/*
+   [U]INT32_MAX need to be declared: this is a C99 header which we assume
+ */
+#include <stdint.h>
 #if WCHAR_MAX == UINT32_MAX
 # define TRE_CHAR_MAX INT32_MAX
 #else
@@ -66,11 +70,11 @@ typedef wint_t tre_cint_t;
 #define TRE_MB_CUR_MAX 1
 #endif /* !TRE_MULTIBYTE */
 
+// #include "rlocale.h"
+
 #define tre_isalnum iswalnum
 #define tre_isalpha iswalpha
-#ifdef HAVE_ISWBLANK
 #define tre_isblank iswblank
-#endif /* HAVE_ISWBLANK */
 #define tre_iscntrl iswcntrl
 #define tre_isdigit iswdigit
 #define tre_isgraph iswgraph
@@ -81,8 +85,15 @@ typedef wint_t tre_cint_t;
 #define tre_isupper iswupper
 #define tre_isxdigit iswxdigit
 
+#ifdef USE_RI18N_CASE
+/* use Ri18n_towlower and Ri18n_towupper, because the UCRT versions do not seem
+   do be working with some characters, such as \ue9 / \uc9 */
+#define tre_tolower Ri18n_towlower
+#define tre_toupper Ri18n_towupper
+#else
 #define tre_tolower towlower
 #define tre_toupper towupper
+#endif
 #define tre_strlen  wcslen
 
 #else /* !TRE_WCHAR */
@@ -116,7 +127,8 @@ typedef short tre_cint_t;
 
 #endif /* !TRE_WCHAR */
 
-/* _WIN32 opt-out is R addition - iswctype is missing "blank" */
+/* _WIN32 opt-out is R addition - iswctype was missing "blank"
+   R requires iswctype and wctype */
 #if !defined(_WIN32) && defined(TRE_WCHAR) && defined(HAVE_ISWCTYPE) && defined(HAVE_WCTYPE)
 #define TRE_USE_SYSTEM_WCTYPE 1
 #endif

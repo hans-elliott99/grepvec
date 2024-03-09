@@ -202,7 +202,7 @@ difftime(Sys.time(), t0)
 
 #
 # fixed searches are much much faster
-# since regexes don't need be compiled or executed
+# since regex compilation/execution adds a lot of time
 #
 t0 <- Sys.time()
 suppressWarnings({
@@ -259,7 +259,6 @@ microbenchmark(loop_grep(shortndls, shorttxt),
                lapply_grep_lambda(shortndls, shorttxt),
                grepvec(shortndls, shorttxt, match = "all"),
                times = 10)
-
 ```
 
 

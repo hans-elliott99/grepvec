@@ -40,6 +40,7 @@ static int RwneedsTranslation(SEXP x) {
 
 /* don't know if we need to do this because R's stringbuffer is reused and
 ours is not... yet, but probably could/should*/
+
 static const wchar_t *RwcopyAndFreeString(RStringBuffer *cbuff) {
     size_t res = wcslen((wchar_t *) cbuff->data) + 1;
     wchar_t *p = (wchar_t *) R_alloc(res, sizeof(wchar_t));
@@ -52,7 +53,7 @@ static const wchar_t *RwfromAscii(const char *src, size_t len) {
     size_t i;
     wchar_t *p = (wchar_t *) R_alloc(len + 1, sizeof(wchar_t));
     for (i=0; i < len; i++)
-        p[i] = (wchar_t)src[i];
+        p[i] = (wchar_t) src[i];
     p[i] = L'\0';
     return p;
 }
@@ -145,6 +146,7 @@ const wchar_t *RwtransChar(SEXP x, int *err) {
 
 
 void Riconv_cleanup(void) {
+    // Riconv cleanup
     if (latin1_wobj) Riconv_close(latin1_wobj);
     if (utf8_wobj) Riconv_close(utf8_wobj);
     latin1_wobj = NULL;
