@@ -6,14 +6,14 @@
 #include <R.h>
 #include <Rinternals.h>
 
-struct RegexInfo {
-    regex_t rgx; // the regex struct, which will hold a compiled regex
+typedef struct {
+    regex_t rgx; // the regex struct, will hold a compiled regex, must be freed
     int flags;   // regex compilation flags
-    ttype_t tt;  // the translation type for the underlying string
-};
+    ttype_t tt;  // translation type for the underlying string
+} RegexInfo;
 
-int init_regex(SEXP ndl, struct RegexInfo *rgxo, R_xlen_t idx);
-int strrgx(const char *str, regex_t *rgx);
-int wstrrgx(const wchar_t *str, regex_t *rgx);
+int init_regex(SEXP ndl, RegexInfo *rgxo, R_xlen_t idx);
+int str_rgx_match(const char *str, regex_t *rgx);
+int wstr_rgx_match(const wchar_t *str, regex_t *rgx);
 
 #endif // grepvec_REGEXP_H

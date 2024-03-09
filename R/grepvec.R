@@ -78,23 +78,62 @@ grepvec <- function(needles,
     if (is.na(keepdim)) stop("argument 'keepdim' must be logical.")
     match <- match.arg(match)
     match_ix <- switch(match, all = 0L, first = 1L)
-    # SEXP grepvec_(SEXP needles,
-    #               SEXP haystck,
-    #               SEXP ignorecase,
-    #               SEXP fixed,
-    #               SEXP usebytes,
-    #               SEXP invert,
-    #               SEXP matchrule,
-    #               SEXP keepdim) {
     on.exit(.Call("C_on_exit_grepvec"))
     x <- .Call("C_grepvec", needles, haystacks,
-               ignore_case, fixed, use_bytes, invert, match_ix, keepdim)
+               ignore_case, fixed, use_bytes, invert, match_ix, keepdim,
+               return_logical = FALSE)
     if (value)
         x <- lapply(x, function(ixs) haystacks[ixs])
     if (names)
         names(x) <- needles
     return(x)
 }
+
+
+#' @rdname grepvec
+#' @export
+greplvec <- function(needles,
+                     haystacks,
+                     ignore_case = FALSE,
+                     value = FALSE,
+                     fixed = FALSE,
+                     use_bytes = FALSE,
+                     invert = FALSE,
+                     names = FALSE,
+                     match = c("all", "first")) {
+    # prep arguments
+    needles <- as.character(needles)
+    haystacks <- as.character(haystacks)
+    fixed <- as.logical(fixed)
+    if (is.na(fixed)) stop("argument 'fixed' must be logical.")
+    ignore_case <- as.logical(ignore_case)
+    if (is.na(ignore_case)) stop("argument 'ignore_case' must be logical.")
+    if (fixed && ignore_case) {
+        ignore_case <- FALSE
+        warning("argument 'ignore_case' is ignored when 'fixed' is TRUE.")
+    }
+    names <- as.logical(names)
+    if (is.na(names)) stop("argument 'names' must be logical.")
+    keepdim <- as.logical(keepdim)
+    if (is.na(keepdim)) stop("argument 'keepdim' must be logical.")
+    match <- match.arg(match)
+    match_ix <- switch(match, all = 0L, first = 1L)
+    on.exit(.Call("C_on_exit_grepvec"))
+    x <- .Call("C_grepvec", needles, haystacks,
+               ignore_case, fixed, use_bytes, invert, match_ix,
+               keepdim = TRUE, # has no effect when return_logical is TRUE
+               return_logical = TRUE)
+    if (value)
+        x <- lapply(x, function(ixs) haystacks[ixs])
+    if (names)
+        names(x) <- needles
+    return(x)
+}
+
+
+
+
+
 
 
 #' For each haystack string, get the needle patterns that matched to it.

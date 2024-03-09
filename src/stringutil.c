@@ -77,17 +77,24 @@ void init_str_cache(StringCache *cache, R_xlen_t n, ttype_t ttype) {
 }
 
 
-void update_str_cache(SEXP ndl, StringCache *cache, R_xlen_t idx) {
+/*returns 1 if successful, 0 if string should be skipped due to being NA or
+  untranslatable to wide char*/
+int update_str_cache(SEXP ndl, StringCache *cache, R_xlen_t idx) {
     // if (TYPEOF(ndl) != CHARSXP) error("x must be a character vector");
+    if (ndl == NA_STRING) return 1; // skip
     if (cache->tt == use_wchar) {
-        if (cache->warr[idx] != NULL) return;
+        if (cache->warr[idx] != NULL) return 0; // already allocated
         int err;
         cache->warr[idx] = RwtransChar(ndl, &err);
-        if (err) Riconv_warning(err, idx, 1); // 1 for haystack
+        if (err) {
+            Riconv_warning(err, idx, 1); // 1 for haystack
+            return 1; // skip
+        }
     } else {
-        if (cache->arr[idx] != NULL) return;
+        if (cache->arr[idx] != NULL) return 0; // already allocated
         cache->arr[idx] = do_translate_char(ndl, cache->tt);
     }
+    return 0;
 }
 
 

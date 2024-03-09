@@ -31,7 +31,7 @@ typedef struct {
 } StringCache;
 
 void init_str_cache(StringCache *cache, R_xlen_t n, ttype_t ttype);
-void update_str_cache(SEXP ndl, StringCache *cache, R_xlen_t idx);
+int update_str_cache(SEXP ndl, StringCache *cache, R_xlen_t idx);
 void free_str_cache(StringCache *cache);
 
 

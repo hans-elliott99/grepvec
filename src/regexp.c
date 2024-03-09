@@ -8,7 +8,7 @@
  * specify the ttype_t of the pattern
 */
 // int init_regex(SEXP ndl, regex_t *rgx_empty, int flags, ttype_t tt, R_xlen_t idx) {
-int init_regex(SEXP ndl, struct RegexInfo *rgxo, R_xlen_t idx) {
+int init_regex(SEXP ndl, RegexInfo *rgxo, R_xlen_t idx) {
     char errbuff[1001];
     int reti;
     const void *vmax = vmaxget();
@@ -41,7 +41,7 @@ int init_regex(SEXP ndl, struct RegexInfo *rgxo, R_xlen_t idx) {
 
 
 /* test if regex finds  match in string */
-int strrgx(const char *str, regex_t *rgx) {
+int str_rgx_match(const char *str, regex_t *rgx) {
     char errbuff[1001];
     int reti = tre_regexecb(rgx, str, 0, NULL, 0);
     if (reti == 0)
@@ -55,7 +55,7 @@ int strrgx(const char *str, regex_t *rgx) {
 
 
 /* test if regex finds  match in wide string */
-int wstrrgx(const wchar_t *str, regex_t *rgx) {
+int wstr_rgx_match(const wchar_t *str, regex_t *rgx) {
     char errbuff[1001];
     int reti = tre_regwexec(rgx, str, 0, NULL, 0);
     if (reti == 0)

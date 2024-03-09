@@ -88,8 +88,14 @@ difftime(Sys.time(), t0)
 
 # base R version
 t0 = Sys.time()
-m2 <- lapply(words, grep, x = txt[1:500])
+m2 <- lapply(words, grepl, x = txt[1:500])
 difftime(Sys.time(), t0)
+
+microbenchmark(
+    grepvec(words, txt[1:500]),
+    lapply(words, grepl, x = txt[1:500]),
+    times = 10
+)
 
 ```
 
@@ -157,7 +163,7 @@ sort(nocc, decreasing = TRUE)
 # example - if you are a data.table user, functions as.data.table and setDT make
 # it easy to convert a list of equal length vectors into a table 
 if (require("data.table", quietly = TRUE))
-    print(data.table::setDT(grepvec(c("a", "z"), txt,
+    head(data.table::setDT(grepvec(c("a", "z"), txt,
                                     keepdim = TRUE, names = TRUE, value = TRUE)))
 ```
 
@@ -255,9 +261,9 @@ all(unlist(x_loop) == unlist(x_lapply))
 all(unlist(x_lapply) == unlist(x_grepvec))
 
 microbenchmark(loop_grep(shortndls, shorttxt),
-               lapply_grep(shortndls, shorttxt),
                lapply_grep_lambda(shortndls, shorttxt),
-               grepvec(shortndls, shorttxt, match = "all"),
+               lapply_grep(shortndls, shorttxt),
+               grepvec(shortndls, shorttxt),
                times = 10)
 ```
 
