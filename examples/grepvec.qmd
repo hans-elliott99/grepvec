@@ -7,12 +7,6 @@ format:
 
 `r Sys.time()`  
 
-Notes:
-- test and translate diff encodings  
-- refactored a bit  
-- encoding message left on  
-
-
 
 ```{r}
 # compiled on:
@@ -26,13 +20,18 @@ library(grepvec)
 library(microbenchmark)
 set.seed(1614)
 
+load_ext_data <- function(filename, ...) {
+    tryCatch(
+        readLines(file.path("../inst/extdata/", filename), ...),
+        warning = \(e) readLines(file.path("./inst/extdata", filename), ...)
+    )
+}
+
 #
 # create some data
 #
-txt <- tryCatch(
-    readLines("../inst/extdata/shakespeare.txt"),
-    warning = \(e) readLines("./inst/extdata/shakespeare.txt")
-)
+txt <- load_ext_data("shakespeare.txt")
+
 # rm document info
 txt <- txt[min(which(txt == "1609")) : max(which(txt == "THE END"))]
 # so we have pure Shakespeare
@@ -47,7 +46,7 @@ gen_word_list <- function(lines, n = 10) {
     words <- unique(strsplit(words, " ")[[1]])
     words <- words[words != ""]
     words <- words[as.integer(runif(n, 1, length(words)))]
-    words <- gsub("\\[|\\]|\\(|\\)", "", words)
+    words <- gsub("[^[:alnum:] ]", "", words)
     return(words)
 }
 
@@ -60,6 +59,9 @@ gen_word_list <- function(lines, n = 10) {
 ```{r}
 grep("gr(a|e)y", c("grey", "gray"))
 grepvec("gr(a|e)y", c("grey", "gray"))
+
+grepl("gr(a|e)y", c("grey", "gray"))
+greplvec("gr(a|e)y", c("grey", "gray"))
 
 grepvec(c("^a", "\\d"), c("1", "apple"))
 lapply(c("^a", "\\d"), \(p) grep(p, c("1", "apple")))
@@ -88,7 +90,7 @@ difftime(Sys.time(), t0)
 
 # base R version
 t0 = Sys.time()
-m2 <- lapply(words, grepl, x = txt[1:500])
+m2 <- lapply(words, grep, x = txt[1:500])
 difftime(Sys.time(), t0)
 
 microbenchmark(
@@ -99,9 +101,15 @@ microbenchmark(
 
 ```
 
-Be careful when unlisting the results, because if no match was found a 0 length vector is returned.
+By default, if no match is found a 0 length vector is returned.  
+This can be convenient if you want to compare the number of string matched to each pattern, via `lengths`.  
+However, if you are want the output to have a consistent shape, you can use option 'keepdim = TRUE'.
 
 ```{r}
+# keepdim = TRUE:
+grepvec(letters[1:3], letters, keepdim = TRUE)
+
+# be careful when unlisting results
 res <- grepvec(words[1:100], tail(txt, 500), match = "first", value = TRUE)
 head(res)
 
@@ -118,6 +126,11 @@ flatten <- function(x, keepdim = TRUE) {
 
 length(flatten(res))
 
+# alternatively, you can use keepdim = TRUE
+res <- grepvec(words[1:100], tail(txt, 500),
+               match = "first", value = TRUE, keepdim = TRUE)
+head(res)
+length(res) == unlist(length(res))
 ```
 
 
@@ -129,6 +142,10 @@ d <- data.frame(txt_col = txt[1001:2000], match = FALSE)
 d[unique(unlist(grepvec(pat, d$txt_col, match = "first"))), "match"] <- TRUE
 head(subset(d, match == TRUE))
 head(subset(d, match == FALSE))
+
+# or just filter data.frame based on matches to a vector
+head(d[unique(unlist(grepvec(pat, d$txt_col, match = "first"))), ])
+
 
 # example - create columns based on matches
 keywords <- gen_word_list(d$txt_col, 3)
@@ -148,14 +165,14 @@ grepvec(pat[1:2], rev(txt), match = "first")
 
 # example - keep dimensions to convert to a data.frame
 x <- do.call(cbind.data.frame,
-             grepvec(letters, txt, keepdim = TRUE, names = TRUE))
+             grepvec(letters, txt, keepdim = TRUE, use_names = TRUE))
 ## number of occurrences in all of shakespeare
 nocc <- apply(x, MARGIN = 2, FUN = \(y) sum(!is.na(y)))
 sort(nocc, decreasing = TRUE)
 
 # capital letters?
 x <- do.call(cbind.data.frame,
-             grepvec(LETTERS, txt, keepdim = TRUE, names = TRUE))
+             grepvec(LETTERS, txt, keepdim = TRUE, use_names = TRUE))
 ## number of occurrences in all of shakespeare
 nocc <- apply(x, MARGIN = 2, FUN = \(y) sum(!is.na(y)))
 sort(nocc, decreasing = TRUE)
@@ -164,7 +181,7 @@ sort(nocc, decreasing = TRUE)
 # it easy to convert a list of equal length vectors into a table 
 if (require("data.table", quietly = TRUE))
     head(data.table::setDT(grepvec(c("a", "z"), txt,
-                                    keepdim = TRUE, names = TRUE, value = TRUE)))
+                                    keepdim = TRUE, use_names = TRUE, value = TRUE)))
 ```
 
 
@@ -198,7 +215,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 
 #
-# returning only the first match is much faster
+# returning only the first match is faster
 #
 t0 <- Sys.time()
 suppressWarnings({
@@ -208,7 +225,7 @@ difftime(Sys.time(), t0)
 
 #
 # fixed searches are much much faster
-# since regex compilation/execution adds a lot of time
+# since regex compilation/execution adds quite a bit of time
 #
 t0 <- Sys.time()
 suppressWarnings({
@@ -255,9 +272,6 @@ x_loop <- loop_grep(shortndls, shorttxt)
 x_lapply <- lapply_grep(shortndls, shorttxt)
 x_grepvec <- grepvec(shortndls, shorttxt)
 all(unlist(x_loop) == unlist(x_lapply))
-
-# grepvec returns empty vec if no results, others return NULL. make equal
-# x_grepvec <- lapply(x_grepvec, \(vec) if (length(vec) == 0) NULL else vec)
 all(unlist(x_lapply) == unlist(x_grepvec))
 
 microbenchmark(loop_grep(shortndls, shorttxt),
@@ -275,8 +289,7 @@ Some comparisons with `base::grep`:
 
 `grepvec` may become slightly faster when comparing a pattern with a bunch of strings (see the last example), but this can vary quite a bit based on the regular expression.  
 
-`grepvec` will be most useful when searching for a vector of patterns in a vector of strings. As demonstrated above, native R solutions aren't quite as fast.  
-
+`grepvec` will be most useful when searching for a vector of patterns in a vector of strings.  
 
 ```{r}
 microbenchmark(
@@ -309,18 +322,17 @@ cat("regex:", p, "\n")
 
 
 R supports many differenct character encodings. When you load text data into R, R has no way to know for certain what encoding scheme the bytes in its memory correspond to.  
-Grepvec takes care to behave similairly to grep in dealing with character encodings. If the encoding of a string has been set (e.g., via `iconv`, `Encoding`, or something else), grepvec can treat the string appropriately.
+Grepvec takes care to behave similairly to grep in dealing with character encodings. If the encoding of a string has been set (e.g., via `iconv` or `Encoding`), grepvec can treat the string appropriately.
 
-In the example below,  `pat = "première"` has encoding UTF8 (because that's the default in my locale) but the string stored in `lat1` has a Latin-1 encoding. If the encoding of `lat1` is not identified before it is passed to grepvec or grep, these functions will error because they cannot determine how the characters should be treated.  
-Fundamentally, although the UTF8-encode "première" and the Latin-1 version appear identical on our screens, different sequences of bytes are used to represent the strings.
+In the example below, `pat = "première"` has encoding UTF8 (because that's the default in my locale) but the string stored in `lat1` has a Latin-1 encoding. If the encoding of `lat1` is not identified before it is passed to grepvec or grep, these functions will error because they cannot determine how the characters should be treated.  
+Fundamentally, although the UTF8-encoded "première" and the Latin-1 version appear identical on our screens, different sequences of bytes are used to represent the strings.
 
 
 ```{r encodings}
 Sys.getlocale("LC_CTYPE")
 
 # load some text with a latin-1 encoding
-lat1 <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/latin1.txt",
-                n = 1)
+(lat1 <- load_ext_data("latin1.txt", n = 1))
 pat <- "première"
 try(grepvec(pat, lat1))
 try(grep(pat, lat1))
@@ -381,26 +393,16 @@ grep(p, lat1, ignore.case = TRUE)
 grepvec(p, lat1, ignore_case = TRUE)
 grepvec(p, toupper(lat1), fixed = TRUE)
 
-(ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/koi8_r.txt")[3])
-grep("Cyr", ex)
-grepvec("Cyr", ex)
-grep(ex, ex)
-grepvec(ex, "c")
-
-(ex <- readLines("https://raw.githubusercontent.com/stain/encoding-test-files/master/utf8.txt"))
+(ex <- load_ext_data("utf8.txt"))
 Encoding(ex) <- "UTF-8"
 
 grep("K", ex)
 grepvec("K", ex)
 
-charToRaw("K")
+charToRaw("K") # ascii K
 charToRaw("К")
 
 grep("Кириллица", ex)
 grepvec("Кириллица", ex)
 
 ```
-
-
-
-TODO: what if text encoding is very strange, will it get handled? try to break things...

@@ -4,6 +4,17 @@
 #include <R.h>
 #include <Rinternals.h>
 
+/*
+    R STRING BUFFER
+*/
+typedef struct {
+    char *data;
+    size_t bufsize;
+    size_t defaultsize;
+} RStringBuffer;
+
+void *RAllocStringBuffer(size_t blen, RStringBuffer *buf);
+void RFreeStringBuffer(RStringBuffer *buf);
 
 /*
     From R-internals, section 1.1.2:
@@ -31,6 +42,6 @@
 
 const wchar_t *RwtransChar(SEXP x, int *err);
 void Riconv_cleanup(void);
-void Riconv_warning(int errcode, R_xlen_t idx, int which);
+void Riconv_warning_grepvec(int errcode, R_xlen_t idx, int which);
 
 #endif // grepvec_WIDESTRING_H

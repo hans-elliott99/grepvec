@@ -1,3 +1,12 @@
+
+check_bool <- function(opt, name) {
+    if (!isTRUE(opt) && !identical(opt, FALSE))
+        stop(paste0("argument '", name, "' must be TRUE or FALSE."))
+    return(opt)
+}
+
+
+
 #' Search for matches between a vector of patterns and a vector of strings.
 #'
 #' `grepvec` searches for needles in haystacks. Needles are one or more
@@ -49,7 +58,7 @@
 #'         value = TRUE)
 #' grepvec("a[bc]", c("app", "ABBA", "accolade"), ignore_case = TRUE)
 #'
-#' @useDynLib grepvec, C_grepvec, C_on_exit_grepvec
+#' @useDynLib grepvec, C_grepvec, C_vecgrep, C_on_exit_grepvec
 #' @export
 grepvec <- function(needles,
                     haystacks,
@@ -59,35 +68,26 @@ grepvec <- function(needles,
                     use_bytes = FALSE,
                     invert = FALSE,
                     keepdim = FALSE,
-                    names = FALSE,
+                    use_names = FALSE,
                     match = c("all", "first")) {
-    # prep arguments
     needles <- as.character(needles)
     haystacks <- as.character(haystacks)
-    fixed <- as.logical(fixed)
-    if (is.na(fixed)) stop("argument 'fixed' must be logical.")
-    ignore_case <- as.logical(ignore_case)
-    if (is.na(ignore_case)) stop("argument 'ignore_case' must be logical.")
-    if (fixed && ignore_case) {
-        ignore_case <- FALSE
-        warning("argument 'ignore_case' is ignored when 'fixed' is TRUE.")
-    }
-    names <- as.logical(names)
-    if (is.na(names)) stop("argument 'names' must be logical.")
-    keepdim <- as.logical(keepdim)
-    if (is.na(keepdim)) stop("argument 'keepdim' must be logical.")
+    value <- check_bool(value, "value")
+    use_names <- check_bool(use_names, "use_names")
     match <- match.arg(match)
-    match_ix <- switch(match, all = 0L, first = 1L)
+
     on.exit(.Call("C_on_exit_grepvec"))
-    x <- .Call("C_grepvec", needles, haystacks,
-               ignore_case, fixed, use_bytes, invert, match_ix, keepdim,
+    x <- .Call("C_grepvec",
+               needles, haystacks,
+               ignore_case, fixed, use_bytes, invert, match, keepdim,
                return_logical = FALSE)
     if (value)
         x <- lapply(x, function(ixs) haystacks[ixs])
-    if (names)
+    if (use_names)
         names(x) <- needles
     return(x)
 }
+
 
 
 #' @rdname grepvec
@@ -95,193 +95,85 @@ grepvec <- function(needles,
 greplvec <- function(needles,
                      haystacks,
                      ignore_case = FALSE,
-                     value = FALSE,
                      fixed = FALSE,
                      use_bytes = FALSE,
-                     invert = FALSE,
-                     names = FALSE,
+                     use_names = FALSE,
                      match = c("all", "first")) {
     # prep arguments
     needles <- as.character(needles)
     haystacks <- as.character(haystacks)
-    fixed <- as.logical(fixed)
-    if (is.na(fixed)) stop("argument 'fixed' must be logical.")
-    ignore_case <- as.logical(ignore_case)
-    if (is.na(ignore_case)) stop("argument 'ignore_case' must be logical.")
-    if (fixed && ignore_case) {
-        ignore_case <- FALSE
-        warning("argument 'ignore_case' is ignored when 'fixed' is TRUE.")
-    }
-    names <- as.logical(names)
-    if (is.na(names)) stop("argument 'names' must be logical.")
-    keepdim <- as.logical(keepdim)
-    if (is.na(keepdim)) stop("argument 'keepdim' must be logical.")
+    use_names <- check_bool(use_names, "use_names")
     match <- match.arg(match)
-    match_ix <- switch(match, all = 0L, first = 1L)
+
     on.exit(.Call("C_on_exit_grepvec"))
     x <- .Call("C_grepvec", needles, haystacks,
-               ignore_case, fixed, use_bytes, invert, match_ix,
-               keepdim = TRUE, # has no effect when return_logical is TRUE
+               ignore_case, fixed, use_bytes,
+               invert = FALSE, # don't use invert when grepl
+               match = match,
+               keepdim = FALSE, # TRUE has no effect when return_logical
                return_logical = TRUE)
-    if (value)
-        x <- lapply(x, function(ixs) haystacks[ixs])
-    if (names)
+    if (use_names)
         names(x) <- needles
     return(x)
 }
 
 
-
-
-
-
-
-#' For each haystack string, get the needle patterns that matched to it.
-#'
-#' Get the results of [grepvec] as a list, length(haystacks), containing the
-#' indices or values of matched needles.
-#' Applying this function to a [grepvec] object is equivalent to calling
-#' [grepvec] with `out = "needles"`.
-#'
-#' @param x `grepvec` object returned from [grepvec] when out = "object".
-#' @param value A logical(0), default FALSE. If FALSE, then at each list index
-#'   is a vector containing the integer indices of matches in needles. If TRUE,
-#'   the actual matched patterns in needles are used instead.
-#' @param needles Character vector containing the needle patterns that were
-#'   searched for in haystacks by [grepvec].
-#'   By default, the needles used in the [grepvec] call are used.
-#' @param ... Additional arguments to be passed to methods.
-#' @return List of length(haystacks) of integer or character vectors.
-#'   Each list index corresponds to the haystack string at that index, and the
-#'   list elements are the indices or patterns from needles which matched to the
-#'   given haystack string.
-#'   The list element will be a vector of length 0 (integer(0) or character(0))
-#'   if no needle matches were found for the haystack.
-#'
+#' @rdname grepvec
 #' @export
-by_hay <- function(x, value = FALSE, ...) {
-    UseMethod("by_hay")
-}
+vecgrep <- function(haystacks,
+                    needles,
+                    ignore_case = FALSE,
+                    value = FALSE,
+                    fixed = FALSE,
+                    use_bytes = FALSE,
+                    invert = FALSE,
+                    keepdim = FALSE,
+                    use_names = FALSE,
+                    match = c("all", "first")) {
+    # prep arguments
+    needles <- as.character(needles)
+    haystacks <- as.character(haystacks)
+    value <- check_bool(value, "value")
+    use_names <- check_bool(use_names, "use_names")
+    match <- match.arg(match)
 
-#' @rdname by_hay
-#' @export
-by_hay.grepvec <- function(x,
-                           value = FALSE,
-                           needles = x$needles,
-                           n_hay = length(x$haystacks),
-                           ...) {
-    res <- x$result
-    # transpose list from by-needle to by-haystack
-    names(res) <- seq_along(res) # stack requires names
-    byhay <- with(utils::stack(res), split(ind, values))
-    # expand list to be length of haystacks
-    out <- lapply(as.character(seq(1, n_hay)), \(hay_ix) {
-        ixs <- byhay[[hay_ix]] # get needle indices for given haystack
-        # ixs is null if there were no matches for this needle
-        if (value) {
-            if (is.null(ixs)) character(0) else needles[ixs]
-        } else {
-            as.integer(ixs)
-        }
-    })
-    return(out)
+    on.exit(.Call("C_on_exit_grepvec"))
+    x <- .Call("C_vecgrep", needles, haystacks,
+               ignore_case, fixed, use_bytes, invert, match, keepdim,
+               return_logical = FALSE)
+    if (value)
+        x <- lapply(x, function(ixs) needles[ixs])
+    if (use_names)
+        names(x) <- haystacks
+    return(x)
 }
 
 
-#' For each needle pattern, get the haystack strings where a match was found.
-#'
-#' Get the results of [grepvec] as a list, length(needles), containing the
-#' indices or values of matched haystacks.
-#' Applying this function to a `grepvec` object is equivalent to calling
-#' [grepvec] with `out = "haystacks"`.
-#
-#' @param x `grepvec` object returned from [grepvec] when out = "object".
-#' @param value A logical(0), default FALSE. If FALSE, then at each list index
-#'   is a vector containing the integer indices of the haystacks that matched to
-#'   the given needle. If TRUE, the actual matched haystack strings are used.
-#' @param haystacks Character vector containing the haystack strings that were
-#'   searched over by grepvec. By default, the haystacks used in the [grepvec]
-#'   call are used.
-#' @param n_ndl The length of the character vector containing the needle
-#'  patterns that were searched for in the haystacks by grepvec.
-#'  By default, the length of the needles used in the [grepvec] call are used.
-#' @param ... Additional arguments to be passed to methods.
-#' @return List of length(needles) of integer or character vectors. Each list
-#'   index corresponds to the needle pattern at that index, and the list
-#'   elements are the indices or actual strings from haystacks which matched to
-#'   the given needle.
-#'   The list element will be a vector of length 0 (integer(0) or character(0))
-#'   if no haystack matches were found for the needle.
+
+#' @rdname grepvec
 #' @export
-by_ndl <- function(x, value = FALSE, ...) {
-    UseMethod("by_ndl")
+vecgrepl <- function(haystacks,
+                     needles,
+                     ignore_case = FALSE,
+                     fixed = FALSE,
+                     use_bytes = FALSE,
+                     use_names = FALSE,
+                     match = c("all", "first")) {
+    # prep arguments
+    needles <- as.character(needles)
+    haystacks <- as.character(haystacks)
+    use_names <- check_bool(use_names, "use_names")
+    match <- match.arg(match)
+
+    on.exit(.Call("C_on_exit_grepvec"))
+    x <- .Call("C_vecgrep", needles, haystacks,
+               ignore_case, fixed, use_bytes,
+               invert = FALSE, # don't use invert when grepl
+               match = match,
+               keepdim = FALSE, # TRUE has no effect when return_logical
+               return_logical = TRUE)
+    if (use_names)
+        names(x) <- haystacks
+    return(x)
 }
 
-#' @rdname by_ndl
-#' @export
-by_ndl.grepvec <- function(x,
-                           value = FALSE,
-                           haystacks = x$haystacks,
-                           ...) {
-    if (value) {
-        # length is 0 if no hays matched with this ndl
-        out <- lapply(x$result, function(ixs) {
-            if (length(ixs) == 0) character(0) else haystacks[ixs]
-        })
-        return(out)
-    }
-    return(x$result)
-}
-
-
-# replicate the effect of calling print on a list object, but
-# add some extra bits
-#' @noRd
-#' @export
-print.grepvec <- function(x, n = 6, ...) {
-    n <- max(1, n[1L])
-    nhay <- nshow <- length(x$haystacks)
-    nndl <- length(x$needles)
-    cat("\n\t*** grepvec ***\n")
-    cat("Searched for",
-        format(nndl, big.mark = ",", scientific = FALSE),
-        if (x$fixed) "fixed" else "regex",
-        if (nndl == 1) "pattern" else "patterns",
-        "across",
-        format(nhay, big.mark = ",", scientific = FALSE),
-        if (nhay == 1) "string" else "strings",
-        "(case", if (x$ignore_case) "insensitive)." else "sensitive).",
-        "\nReturned",
-        if (x$matchrule == "first") "the first match.\n"
-        else if (x$matchrule == "last") "the last match.\n"
-        else "all matches. ")
-
-    byhay <- by_hay(x)
-    if (nshow > n) {
-        cat("First ")
-        nshow <- n
-    }
-    cat(nshow,
-        if (nshow == 1) "result:\n" else "results:\n")
-    # cut to first n rows
-    byhay <- byhay[1:nshow]
-    # add haystacks as names
-    nms <- paste0('"', x$haystacks[1:nshow], '"')
-    longnms <- which(nchar(nms) > 82)
-    nms[longnms] <- paste0(substr(nms[longnms], 1, 71), '"...[trunc]')
-    for (i in seq_along(byhay)) {
-        cat("\n", nms[i], "\n", sep = "")
-        ndls <- byhay[[i]]
-        print.default(ndls, ...)
-        nmtch <- length(ndls)
-        if (nmtch > 0)
-            cat("(", nmtch, if (nmtch == 1) " match" else " matches", ")\n",
-                sep = "")
-    }
-    if (nhay > nshow)
-        cat("\n... out of ",
-            format(nhay, big.mark = ",", scientific = FALSE),
-            " haystacks.", sep = "")
-    cat("\n")
-    return(invisible(x))
-}

@@ -2,6 +2,9 @@
 % Please edit documentation in R/grepvec.R
 \name{grepvec}
 \alias{grepvec}
+\alias{greplvec}
+\alias{vecgrep}
+\alias{vecgrepl}
 \title{Search for matches between a vector of patterns and a vector of strings.}
 \usage{
 grepvec(
@@ -13,7 +16,40 @@ grepvec(
   use_bytes = FALSE,
   invert = FALSE,
   keepdim = FALSE,
-  names = FALSE,
+  use_names = FALSE,
+  match = c("all", "first")
+)
+
+greplvec(
+  needles,
+  haystacks,
+  ignore_case = FALSE,
+  fixed = FALSE,
+  use_bytes = FALSE,
+  use_names = FALSE,
+  match = c("all", "first")
+)
+
+vecgrep(
+  haystacks,
+  needles,
+  ignore_case = FALSE,
+  value = FALSE,
+  fixed = FALSE,
+  use_bytes = FALSE,
+  invert = FALSE,
+  keepdim = FALSE,
+  use_names = FALSE,
+  match = c("all", "first")
+)
+
+vecgrepl(
+  haystacks,
+  needles,
+  ignore_case = FALSE,
+  fixed = FALSE,
+  use_bytes = FALSE,
+  use_names = FALSE,
   match = c("all", "first")
 )
 }

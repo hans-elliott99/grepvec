@@ -1,5 +1,4 @@
 
-#include "stringutil.h" //StringBuffer
 #include "widestring.h"
 #include <stdlib.h> //NULL,size_t
 #include <wchar.h> //wcslen
@@ -7,8 +6,58 @@
 #include <R_ext/Riconv.h> // Riconv_open, Riconv_close, Riconv
 
 
-/*              WIDE CHAR TRANSLATION                                       */
-/*https://github.com/wch/r-source/blob/8857cc7f32d9affd9f519773a43ce4cbde97fe24/src/main/sysutils.c#L1652*/
+/*
+                STRING BUFFER
+    The below functions are adapted from R,
+        see source code at src/main/memory.c
+*/
+
+/* R_AllocStringBuffer
+ * as used here, blen is always set to 0 in RtranslateToWchar, so blen and blen1
+ * are always equal to 1 initially.
+ * bsize is set to 4 * strlen(CHAR(x)) in RwtransChar, so for example,
+ * an input string with one char has strlen = 2 and thus bsize = 4*2 = 8.
+ * Then blen = (1/8) * 8 = 0 (since size_t), and 0 < 1 so blen = 0 + 8 = 8,
+ * which becomes the size of the buffer.
+*/
+void *RAllocStringBuffer(size_t blen, RStringBuffer *buf) {
+    size_t blen1, bsize = buf->defaultsize;
+    if (blen * sizeof(char) < buf->bufsize) return buf->data;
+    blen1 = blen = (blen + 1) * sizeof(char);
+    blen = (blen / bsize) * bsize;
+    if (blen < blen1) blen += bsize;
+    /* Result may be accessed as `wchar_t *` and other types; malloc /
+    realloc guarantee correct memory alignment for all object types */
+    if (buf->data == NULL) {
+        buf->data = (char *)malloc(blen);
+        if (buf->data)
+            buf->data[0] = '\0';
+    } else {
+        buf->data = (char *)realloc(buf->data, blen);
+    }
+    buf->bufsize = blen;
+    if (!buf->data) {
+        buf->bufsize = 0;
+        error("could not allocate memory in C function RallocStringBuffer");
+    }
+    return buf->data;
+}
+
+void RFreeStringBuffer(RStringBuffer *buf) {
+    if (buf->data != NULL) {
+        free(buf->data);
+        buf->bufsize = 0;
+        buf->data = NULL;
+    }
+}
+
+
+/*
+                WIDE CHAR TRANSLATION
+    
+    The below functions are adapted from R,
+        see source code at src/main/sysutils.c
+*/
 
 #ifdef WIN32 // defined on all Windows platforms
 static const char TO_WCHAR[] = "UTF-16LE";
@@ -38,9 +87,6 @@ static int RwneedsTranslation(SEXP x) {
     return NT_FROM_NATIVE;
 }
 
-/* don't know if we need to do this because R's stringbuffer is reused and
-ours is not... yet, but probably could/should*/
-
 static const wchar_t *RwcopyAndFreeString(RStringBuffer *cbuff) {
     size_t res = wcslen((wchar_t *) cbuff->data) + 1;
     wchar_t *p = (wchar_t *) R_alloc(res, sizeof(wchar_t));
@@ -59,13 +105,14 @@ static const wchar_t *RwfromAscii(const char *src, size_t len) {
 }
 
 
+static void *latin1_wobj = NULL, *utf8_wobj = NULL;
+
+
 /*
-Note from R:
+Note from R source:
 Translate from current encoding to wchar_t = UTF-16LE/UCS-4
    NB: that wchar_t is UCS-4 is an assumption, but not easy to avoid.
 */
-static void *latin1_wobj = NULL, *utf8_wobj = NULL;
-
 static int RtranslateToWchar(const char *ans,
                              RStringBuffer *cbuff,
                              nttype_t fromcode) {
@@ -124,6 +171,8 @@ static int RtranslateToWchar(const char *ans,
     return 0;
 }
 
+
+/*translate CHARSXP to wide string*/
 const wchar_t *RwtransChar(SEXP x, int *err) {
     // if (TYPEOF(x) != CHARSXP) error("x must be a character vector");
     (*err) = 0;
@@ -155,23 +204,26 @@ void Riconv_cleanup(void) {
 
 
 
-void Riconv_warning(int errcode, R_xlen_t idx, int is_haystack) {
+void Riconv_warning_grepvec(int errcode, R_xlen_t idx, int is_haystack) {
     char whichvec[9];
     strcpy(whichvec, (is_haystack) ? "haystack" : "needle");
+    char msg[] = "Check the encodings of the input vectors.";
     ++idx; // R index
     switch (errcode)
     {
     case EILSEQ:
-        warning("invalid multibyte sequence in %s string %d.", whichvec, idx);
+        warning("invalid multibyte sequence in %s string %d. %s",
+                whichvec, idx, msg);
         break; 
     case EINVAL:
-        warning("incomplete multibyte sequence in %s string %d.", whichvec, idx);
+        warning("incomplete multibyte sequence in %s string %d. %s",
+                whichvec, idx, msg);
         break;
     case E2BIG:
-        warning("iconv output buffer too small.");
+        warning("internal error, iconv output buffer too small.");
         break;
     default:
-        warning("iconv failed to convert %s string %d to wide char for unkown reason.",
-                whichvec, idx);
+        warning("iconv failed to convert %s string %d to wide char for unkown reason. %s",
+                whichvec, idx, msg);
     }
 }

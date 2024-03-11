@@ -1,0 +1,256 @@
+---
+title: "vecgrep demo"
+format: 
+  gfm:
+    toc: true
+---
+
+`r Sys.time()`  
+
+
+```{r}
+# compiled on:
+Sys.info()[c("sysname", "release", "version", "machine")]
+```
+
+
+```{r}
+# make sure you installed in some way
+library(grepvec)
+library(microbenchmark)
+set.seed(1614)
+
+load_ext_data <- function(filename, ...) {
+    tryCatch(
+        readLines(file.path("../inst/extdata/", filename), ...),
+        warning = \(e) readLines(file.path("./inst/extdata", filename), ...)
+    )
+}
+
+#
+# create some data
+#
+txt <- load_ext_data("shakespeare.txt")
+
+# rm document info
+txt <- txt[min(which(txt == "1609")) : max(which(txt == "THE END"))]
+# so we have pure Shakespeare
+writeLines(c(head(txt, 15), "....", tail(txt, 5)))
+
+#
+# get some random words from the txt to use as patterns
+#
+gen_word_list <- function(lines, n = 10) {
+    li <- as.integer(runif(n, 1, length(lines)))
+    words <- paste(lines[li], collapse = " ")
+    words <- unique(strsplit(words, " ")[[1]])
+    words <- gsub("[^[:alnum:] ]", "", words)
+    words <- words[words != ""]
+    words <- words[as.integer(runif(n, 1, length(words)))]
+    return(words)
+}
+
+```
+
+
+## Examples
+
+```{r}
+words <- gen_word_list(txt, n = 2000)
+
+t0 = Sys.time()
+m <- vecgrep(txt[1:500], words, match = "all")
+difftime(Sys.time(), t0)
+
+```
+
+
+```{r}
+pat <- gen_word_list(txt, 500) # your vector of patterns
+d <- data.frame(txt_col = txt[1001:2000], match = FALSE)
+
+# example - get rows that match to any pattern
+match_mask <- unlist(vecgrepl(d$txt_col, pat, match = "first"))
+d[match_mask, "match"] <- TRUE
+
+
+# example - get first/last pattern that matches to each string
+first = unlist(vecgrep(d$txt_col, pat, keepdim = TRUE, value = TRUE, match = "first"))
+d <- transform(d,
+               first = unlist(vecgrep(txt_col, pat,
+                                      keepdim = TRUE, value = TRUE, match = "first")),
+               last = unlist(vecgrep(txt_col, rev(pat),
+                                     keepdim = TRUE, value = TRUE, match = "first"))
+               )
+head(subset(d, match == TRUE))
+
+# example - keep dimensions to convert to a data.frame
+x <- do.call(rbind,
+             vecgrep(txt[31:35], letters[1:5], keepdim = TRUE))
+x <- as.data.frame(cbind(txt[31:35], x))
+names(x) <- c("line", letters[1:5])
+head(x)
+
+```
+
+## Speed
+
+```{r big-hay-vec}
+# test vecgrep on some bigger vectors
+hay <- c(txt, txt)
+ndl <- words
+cat("N Hay =", format(length(hay), big.mark = ","),
+    "| N Needle =", format(length(ndl), big.mark = ","), "\n")
+
+t0 <- Sys.time()
+suppressWarnings({
+    x <- vecgrep(hay, ndl, fixed = FALSE, match = "all")
+})
+difftime(Sys.time(), t0)
+
+#
+# returning only the first match is faster
+#
+t0 <- Sys.time()
+suppressWarnings({
+    x <- vecgrep(hay, ndl, fixed = FALSE, match = "first")
+})
+difftime(Sys.time(), t0)
+
+#
+# fixed searches are much much faster
+# since regex compilation/execution adds quite a bit of time
+#
+t0 <- Sys.time()
+suppressWarnings({
+    x <- vecgrep(hay, ndl, fixed = TRUE, match = "all")
+})
+difftime(Sys.time(), t0)
+
+
+t0 <- Sys.time()
+suppressWarnings({
+    x <- vecgrep(hay, ndl, fixed = TRUE, match = "first")
+})
+difftime(Sys.time(), t0)
+
+```
+
+
+
+## Compare vecgrep with native R solutions
+
+Suggestions wanted.
+
+```{r base-r-cmp}
+#
+# implement as if matchrule = last, and use try because grep errors if bad regex
+#
+
+loop_grep <- function(needles, haystacks) {
+    x <- vector(mode = "list", length = length(haystacks))
+    for (i in seq_along(needles)) {
+        try({
+            matchinds <- grep(needles[i], haystacks)
+            x[matchinds] <- i #lapply(x[matchinds], \(vec) c(vec, i))
+        }, silent = TRUE)
+    }
+    return(x)
+}
+
+lapply_grep <- function(needles, haystacks) {
+    x <- vector(mode = "list", length = length(haystacks))
+    .fn <- \(ndl) {
+        try({
+            matchinds <- grep(ndl, haystacks)
+            return(matchinds)
+        }, silent = TRUE)
+        return(NULL)
+    }
+    ndlmtches <- lapply(needles, .fn)
+    for (i in seq_along(needles)) {
+        matchinds <- ndlmtches[[i]]
+        x[matchinds] <- i #lapply(x[matchinds], \(vec) c(vec, i))
+    }
+    return(x)
+}
+
+#
+# lapply is quick, then use stack and split to transpose the list
+# (pretty slow)
+t_lapply_grep <- function(needles, haystacks) {
+    byndl <- lapply(needles, grep, x = haystacks)
+    names(byndl) <- seq_along(byndl) # stack requires names
+    byhay <- with(utils::stack(byndl), split(ind, values))
+    # expand list to be of length haystacks
+    out <- lapply(as.character(seq(1, length(haystacks))), \(hay_ix) {
+        ixs <- byhay[[hay_ix]] # get needle indices for given haystack
+        # ixs is null if there were no matches for this needle
+        return(ixs[length(ixs)]) # "last match"
+    })
+}
+
+# verify methods return same results
+shortndls <- words[1:100]
+shorttxt <- txt[1:500]
+x_loop <- loop_grep(shortndls, shorttxt)
+x_lapply <- lapply_grep(shortndls, shorttxt)
+x_grepvec <- vecgrep(shorttxt, shortndls, match = "all")
+all(unlist(x_loop) == unlist(x_lapply))
+
+# grepvec returns empty vec if no results, others return NULL. make equal
+x_grepvec <- lapply(x_grepvec, \(vec) if (length(vec) == 0) NULL else vec[length(vec)])
+all(unlist(x_lapply) == unlist(x_grepvec))
+
+microbenchmark(loop_grep(shortndls, shorttxt),
+               lapply_grep(shortndls, shorttxt),
+               vecgrep(shorttxt, shortndls),
+               times = 10)
+```
+
+
+```{r}
+microbenchmark(
+    grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com"),
+    vecgrep("some-email$grep.com", "^[[:alnum:]._-]+@[[:alnum:].-]+$")
+)
+
+microbenchmark(
+    grep("([^ @]+)@([^ @]+)", "name@server.com"),
+    vecgrep("name@server.com", "([^ @]+)@([^ @]+)")
+)
+
+p <- gen_word_list(txt, n = 1)
+microbenchmark(
+    grep(p, txt),
+    vecgrep(txt, p)
+)
+cat("regex:", p, "\n")
+
+```
+
+
+## Encodings
+
+```{r encodings}
+Sys.getlocale("LC_CTYPE")
+
+# load some text with a latin-1 encoding
+(lat1 <- load_ext_data("latin1.txt", n = 1))
+pat <- "première"
+vecgrep(lat1, pat)
+try(grep(pat, lat1))
+
+# cat(paste("Text:", lat1, "\nEncoding:", Encoding(lat1), "\n"))
+Encoding(lat1) <- "latin1"
+cat(paste("Text:", lat1, "\nSet Encoding:", Encoding(lat1), "\n"))
+
+pat <- "première"
+cat("Pattern:", pat, "\nEncoding:", Encoding(pat), "\n")
+vecgrep(lat1, pat)
+grep(pat, lat1)
+
+grep(pat, lat1, useBytes = TRUE)
+vecgrep(lat1, pat, use_bytes = TRUE)
+
+```
