@@ -1,3 +1,6 @@
 ^LICENSE\.md$
-.qmd
-^examples$
+.qmd$
+examples
+extdata
+archive
+.vscode$
