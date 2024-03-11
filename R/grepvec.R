@@ -177,3 +177,117 @@ vecgrepl <- function(haystacks,
     return(x)
 }
 
+
+#' Check if a string contains any of a vector of patterns.
+#'
+#' @useDynLib grepvec, C_vecmatch
+#' @export
+grep_any <- function(haystacks,
+                     needles,
+                     ignore_case = FALSE,
+                     fixed = FALSE,
+                     use_bytes = FALSE,
+                     invert = FALSE) {
+    fct <- FALSE
+    if (is.factor(haystacks)) {
+        fct <- TRUE
+        hay <- levels(haystacks)
+    } else {
+        hay <- as.character(haystacks)
+    }
+    needles <- as.character(needles)
+    x <- .Call("C_vecmatch", needles, hay,
+               ignore_case = ignore_case, value = FALSE, fixed = fixed,
+               use_bytes = use_bytes, invert = invert,
+               return_logical = TRUE, return_counts = FALSE)
+    # index by factor == index by their encoded integer lvls
+    if (fct)
+        x <- x[haystacks]
+    return(x)
+}
+
+
+#' Get the first match from a vector of patterns for each string.
+#'
+#' @useDynLib grepvec, C_vecmatch
+#' @export
+grep_first <- function(haystacks,
+                       needles,
+                       ignore_case = FALSE,
+                       value = FALSE,
+                       fixed = FALSE,
+                       use_bytes = FALSE,
+                       invert = FALSE) {
+    fct <- FALSE
+    if (is.factor(haystacks)) {
+        fct <- TRUE
+        hay <- levels(haystacks)
+    } else {
+        hay <- as.character(haystacks)
+    }
+    needles <- as.character(needles)
+    value <- check_bool(value, "value")
+    x <- .Call("C_vecmatch", needles, hay,
+               ignore_case = ignore_case, value = value, fixed = fixed,
+               use_bytes = use_bytes, invert = invert,
+               return_logical = FALSE, return_counts = FALSE)
+    # index by factor == index by their encoded integer lvls
+    if (fct)
+        x <- x[haystacks]
+    return(x)
+}
+
+
+
+#' Count the number of matches in a vector of patterns for each string.
+#'
+#' @useDynLib grepvec, C_vecmatch
+#' @export
+grep_count <- function(haystacks,
+                       needles,
+                       ignore_case = FALSE,
+                       fixed = FALSE,
+                       use_bytes = FALSE,
+                       invert = FALSE) {
+    haystacks <- as.character(haystacks)
+    needles <- as.character(needles)
+    fct <- FALSE
+    if (is.factor(haystacks)) {
+        fct <- TRUE
+        hay <- levels(haystacks)
+    } else {
+        hay <- haystacks
+    }
+    x <- .Call("C_vecmatch", needles, hay,
+               ignore_case = ignore_case, value = FALSE, fixed = fixed,
+               use_bytes = use_bytes, invert = invert,
+               return_logical = FALSE, return_counts = TRUE)
+    # index by factor == index by their encoded integer lvls
+    if (fct)
+        x <- x[haystacks]
+    return(x)
+}
+
+
+#' @rdname grep_any
+#' @export
+"%grepin%" <- function(x, patterns) {
+    grep_any(x, patterns,
+             ignore_case = FALSE, fixed = FALSE,
+             use_bytes = FALSE, invert = FALSE)
+}
+
+
+#' @rdname grep_any
+#' @export
+"%igrepin%" <- function(x, patterns) {
+    grep_any(x, patterns,
+             ignore_case = TRUE, fixed = FALSE,
+             use_bytes = FALSE, invert = FALSE)
+}
+
+# TODO:
+# - general documentation
+# - approx matching
+# - object which allows for compilation of a set of patterns and then you can
+#   use them however you want

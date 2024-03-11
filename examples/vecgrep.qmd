@@ -59,9 +59,28 @@ gen_word_list <- function(lines, n = 10) {
 words <- gen_word_list(txt, n = 2000)
 
 t0 = Sys.time()
-m <- vecgrep(txt[1:500], words, match = "all")
+m1 <- vecgrep(txt[1:500], words, match = "all")
 difftime(Sys.time(), t0)
 
+t0 = Sys.time()
+m <- grep_any(txt[1:500], words)
+difftime(Sys.time(), t0)
+
+t0 = Sys.time()
+m <- grep_first(txt[1:500], words)
+difftime(Sys.time(), t0)
+
+
+t0 = Sys.time()
+m <- grep_first(txt[1:500], words, value = TRUE)
+difftime(Sys.time(), t0)
+
+
+t0 = Sys.time()
+m <- grep_count(txt[1:500], words)
+difftime(Sys.time(), t0)
+
+all(lengths(m1) == m)
 ```
 
 
@@ -73,6 +92,8 @@ d <- data.frame(txt_col = txt[1001:2000], match = FALSE)
 match_mask <- unlist(vecgrepl(d$txt_col, pat, match = "first"))
 d[match_mask, "match"] <- TRUE
 
+head(d[grep_any(d$txt_col, pat), ])
+head(subset(d, txt_col %grepin% pat))
 
 # example - get first/last pattern that matches to each string
 first = unlist(vecgrep(d$txt_col, pat, keepdim = TRUE, value = TRUE, match = "first"))
@@ -84,12 +105,37 @@ d <- transform(d,
                )
 head(subset(d, match == TRUE))
 
+# example - get number of matches in a vector
+d <- transform(d,
+               nmatch = grep_count(txt_col, pat))
+head(subset(d, match == TRUE))
+
 # example - keep dimensions to convert to a data.frame
 x <- do.call(rbind,
              vecgrep(txt[31:35], letters[1:5], keepdim = TRUE))
 x <- as.data.frame(cbind(txt[31:35], x))
 names(x) <- c("line", letters[1:5])
 head(x)
+
+# or use vecgrepl
+x <- do.call(rbind,
+             vecgrepl(txt[31:35], letters[1:5]))
+x <- as.data.frame(cbind(txt[31:35], x))
+names(x) <- c("line", letters[1:5])
+head(x)
+
+#
+# other examples
+#
+
+# example - factor speedup when duplicate haystacks
+x <- rep(letters, 100)
+pat <- letters
+microbenchmark(
+    grep_any(x, pat),
+    grep_any(as.factor(x), pat)
+)
+# note - if duplicate patterns, user can call unique on pattern vector first
 
 ```
 

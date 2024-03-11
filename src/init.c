@@ -11,11 +11,13 @@
 extern SEXP C_grepvec(void *, void *, void *, void *, void *, void *, void *, void *, void *);
 extern SEXP C_on_exit_grepvec(void);
 extern SEXP C_vecgrep(void *, void *, void *, void *, void *, void *, void *, void *, void *);
+extern SEXP C_vecmatch(void *, void *, void *, void *, void *, void *, void *, void *, void *);
 
 static const R_CallMethodDef CallEntries[] = {
     {"C_grepvec",         (DL_FUNC) &C_grepvec,         9},
     {"C_on_exit_grepvec", (DL_FUNC) &C_on_exit_grepvec, 0},
     {"C_vecgrep",         (DL_FUNC) &C_vecgrep,         9},
+    {"C_vecmatch",        (DL_FUNC) &C_vecmatch,        9},
     {NULL, NULL, 0}
 };
 

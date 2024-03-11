@@ -262,7 +262,7 @@ SEXP C_grepvec(SEXP needles,
         if (fxd)
             ndl_fxd = (char *) do_translate_char(ndl_ptr[j], tt);
         /*
-            iterate over haystack
+            iterate over haystacks
         */
         mlen = (mrule == RETURNFIRST) ? 1 : Nhay;
         logicals = PROTECT(allocVector(LGLSXP, mlen));
@@ -389,7 +389,7 @@ SEXP C_vecgrep(SEXP needles,
     SEXP *hay_ptr = STRING_PTR(haystacks);
     SEXP *ndl_ptr = STRING_PTR(needles);
     /*
-        iterate over haystack
+        iterate over haystacks
     */
     for (i=0; i < Nhay; ++i) {
         if ((i + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
@@ -467,4 +467,124 @@ SEXP C_vecgrep(SEXP needles,
 
     UNPROTECT(1); // outlist
     return outlist;
+}
+
+
+
+SEXP C_vecmatch(SEXP needles,
+                SEXP haystacks,
+                SEXP ignore_case,
+                SEXP value,
+                SEXP fixed,
+                SEXP use_bytes,
+                SEXP invert,
+                SEXP return_logical,
+                SEXP return_counts) {
+    /*
+        setup
+    */
+    const R_xlen_t Nndl = XLENGTH(needles);
+    const R_xlen_t Nhay = XLENGTH(haystacks);
+    int val = Roption(value, "value", LGLSXP);
+    int icase = Roption(ignore_case, "ignore_case", LGLSXP);
+    const int fxd = Roption(fixed, "fixed", LGLSXP);
+    const int bytes = Roption(use_bytes, "use_bytes", LGLSXP);
+    const int inv = Roption(invert, "invert", LGLSXP);
+    const int ret_logical = Roption(return_logical, "return_logical", LGLSXP);
+    const int ret_counts = Roption(return_counts, "return_counts", LGLSXP);
+
+    if (ret_logical && ret_counts)
+        error("only one of 'return_logical' and 'return_counts' can be TRUE.");
+
+    const int ret_int = !ret_logical && !ret_counts;
+    int rgx_flags = REG_EXTENDED | REG_NOSUB;
+    if (icase) rgx_flags |= REG_ICASE;
+
+    if (fxd && icase) {
+        warning("'ignore_case' will be ignored since 'fixed = TRUE'.");
+        icase = 0;
+    }
+    if (val && !ret_int) {
+        warning("'value' has no effect unless returning indices.");
+        val = 0;
+    }
+
+    /*determine encoding of inputs and get conversion type*/
+    ttype_t tt = get_ttype(needles, haystacks, fxd, bytes);
+
+    /*output a vector with an element for each haystack*/
+    SEXP output = PROTECT(allocVector((ret_logical) ? LGLSXP : INTSXP, Nhay));
+    int *out_ptr = INTEGER(output);
+    memset(out_ptr, 0, Nhay * sizeof(int));
+
+    /*cache for needle patterns*/
+    if (fxd)
+        init_str_cache(&string_cache, Nndl, tt);
+    else
+        init_rgx_cache(&regex_cache, rgx_flags, tt, Nndl);
+    /*string info for current haystack*/
+    StringInfo stro = {NULL, // const char *str
+                       NULL, // const char *wstr
+                       tt};  // ttype_t tt
+
+    R_xlen_t i, j, nmatch;
+    int res;
+    SEXP *hay_ptr = STRING_PTR(haystacks);
+    SEXP *ndl_ptr = STRING_PTR(needles);
+    /*
+        iterate over haystacks
+    */
+    for (i=0; i < Nhay; ++i) {
+        if ((i + 1) % NINTERRUPT == 0) R_CheckUserInterrupt();
+        if (init_str_info(&stro, hay_ptr[i], tt)) {
+            continue; // if NA or if error translating to wide char
+        }
+        /*
+            iterate over needles
+        */
+        nmatch = 0;   // num matches for haystack i
+        for (j=0; j < Nndl; ++j) {
+            if ((fxd) ? update_str_cache(ndl_ptr[j], &string_cache, j) :
+                        update_rgx_cache(ndl_ptr[j], &regex_cache, j)
+            ) {
+                continue; // if NA or if error translating str/compiling regex
+            }
+            res = (fxd) ? (strstr(stro.str, string_cache.arr[j]) != NULL) :
+                           strrgx2(&stro, &regex_cache, j);
+            if (res ^ inv) {
+                ++nmatch;
+                if (ret_logical) {
+                    out_ptr[i] = 1;
+                    break;
+                } else if (ret_int) {
+                    out_ptr[i] = j + 1; // R's idx for current ndl
+                    break;
+                }
+                // else counting matches, must try all needles
+            }
+        }
+        if (ret_int && nmatch == 0) {
+            out_ptr[i] = NA_INTEGER;
+        } else if (ret_counts) {
+            out_ptr[i] = nmatch;
+        }
+    }
+    /*
+        return pattern values if requested
+    */
+    if (val) {
+        SEXP values = PROTECT(allocVector(STRSXP, Nhay));
+        for (i=0; i < Nhay; ++i) {
+            if (out_ptr[i] == NA_INTEGER) {
+                SET_STRING_ELT(values, i, NA_STRING);
+            } else {
+                SET_STRING_ELT(values, i, ndl_ptr[out_ptr[i] - 1]);
+            }
+        }
+        UNPROTECT(2); // output, values
+        return values;
+    }
+
+    UNPROTECT(1); // output
+    return output;
 }
