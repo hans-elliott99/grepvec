@@ -1,0 +1,26 @@
+# Makevars for compiling grepvec
+
+tre_src = \
+	tre/regcomp.c \
+	tre/regerror.c \
+	tre/regexec.c  \
+	tre/tre-ast.c \
+	tre/tre-compile.c \
+	tre/tre-match-approx.c \
+	tre/tre-match-backtrack.c \
+	tre/tre-match-parallel.c \
+	tre/tre-mem.c \
+	tre/tre-parse.c \
+	tre/tre-stack.c \
+	tre/xmalloc.c
+
+grepvec_src = regexp.c stringutil.c widestring.c
+
+SOURCES = $(tre_src) $(grepvec_src) init.c grepvec.c
+OBJECTS = $(SOURCES:.c=.o)
+all: $(SHLIB)
+
+
+.PHONY: clean
+clean:
+	rm -f $(SHLIB) $(OBJECTS)
