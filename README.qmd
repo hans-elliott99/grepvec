@@ -11,7 +11,11 @@ format:
 Use `grepvec` to find needles in haystacks.  
 
 That is, search for each pattern in a vector of regular expressions or fixed strings across each string in another vector.  
-R's native 'grep' functions search for a single pattern in a vector of strings. To search for many possible patterns across a string or vector of strings, some form of looping is required. `grepvec` implements this in C so that it is more efficient.  
+R's native 'grep' functions search for a single pattern in a vector of strings. To search for many possible patterns across a string or vector of strings, some form of looping is required. `grepvec` implements this in C.  
+
+
+> Note: `grepvec` was a fun attempt to improve on the speed of existing solutions to this problem. It was faster than native R solutions when it was a bare-bone implementation (see the "simple_grepvec" branch). Adding further developments - like using TRE instead of regex.h and supporting different character encodings - were arguably necessary, but slowed down the program quite a bit. I'm sure it could be improved in many, many ways.
+
 
 
 ## Install
@@ -28,34 +32,53 @@ For development, `testthat` is needed for unit testing, and I use `devtools` (an
 
 ## Examples
 
-Please see `examples/grepvec.md` for more examples.
+Please see `examples/` for more examples.
+
+```{r}
+devtools::load_all()
+```
 
 ```{r}
 library(grepvec)
 
+# grepvec returns a list with length equivalent to length(needles).
+# each element in the list is a vector, which can be length 0 up to length(haystacks).
+# The elements of each vector are the indices to the strings in haystacks that
+# contained the pattern for the given needle.
 grepvec(needles = c("some", "other", "string"),
-        haystacks = c("some string 1", "another string"))
+        haystacks = c("some string 1", "another string"),
+        fixed = TRUE)
 
 grepvec(c("^h", ".ell.", "ello$"), c("hello", "jelly"))
 
-grepvec(c("^h", ".ell.", "ello$"), c("hello", "jelly"),
+grepvec(c("^h", ".ell.", "ello$"), c("hello", "JELLY"),
+        value = TRUE, ignore_case = TRUE)
+
+# vecgrep returns a list length(haystacks), returning the patterns (needles)
+# that matched to each haystack string. It's like a transposed version of grepvec
+vecgrep(c("hello", "jelly"), c("^h", ".ell.", "ello$"),
         value = TRUE)
 
-grepvec(c("one", "possib", "many"),
-        c("Some text which might possibly contain one of many keywords",
-          "Another string, without many words",
-          "A third impossibly boring string",
-          "I'm done thinking of strings."),
-        out = "haystacks",
-        value = TRUE)
+vecgrep(paste(letters, collapse = ""), letters[1:3], value = TRUE)
+## return only the first match, instead of all
+vecgrep(paste(letters, collapse = ""), letters[1:3], value = TRUE, match = "first")
 
-grepvec(letters, paste(letters, collapse = ""), value = TRUE)
-grepvec(letters, paste(letters, collapse = ""), matchrule = "first", value = TRUE)
-grepvec(letters, paste(letters, collapse = ""), matchrule = "last", value = TRUE)
 
-x <- grepvec(letters[1:6], c("abc", "123"), out = "object")
-setNames(grepvec::by_hay(x, value = TRUE), x$haystacks)
-setNames(grepvec::by_ndl(x, value = TRUE), x$needles)
+# Some other utilities
+
+strings <- c("the quick brown fox", "jumps over", "the lazy dog")
+
+# check if strings contain any of the patterns in the pattern vector 
+grepl_any(c("fox", "dog"), strings)
+# or, equivalent:
+c("fox", "dog") %grepin% strings
+
+# get the first match in the pattern vector for each string in x
+grep_first(c("quick", "fox", "lazy", "dog"), strings, value = TRUE)
+
+# count the number of patterns that occur in each string
+grep_count(c("o", "u"), strings)
+
 ```
 
 
@@ -67,7 +90,7 @@ For example, `grepvec` uses the same regex library ([tre](https://github.com/lau
 
 ### PERL
 
-I may add perl-compatible regular expressions through the [PCRE library](https://www.pcre.org/original/doc/html/index.html), but currently there is no `perl` option in `grepvec`.
+We could add perl-compatible regular expressions through the [PCRE library](https://www.pcre.org/original/doc/html/index.html), but currently there is no `perl` option in `grepvec`.
 
 
 ### Missing values
@@ -84,18 +107,20 @@ grep("a", c(NA, "apple"))
 `grepvec` never returns `NA`:
 
 ```{r}
-grepvec(NA, letters[1:2])
-grepvec(c("a", "b"), c(NA, "apple"))
+grepvec(NA, letters)
+grepvec("a", NA)
+grepvec("a", c(NA, "apple"))
+vecgrep(c(NA, "apple"), "a")
 ```
 
-Since `grepvec` is meant to be used to check for *many* patterns in *many* strings, if a needle is `NA`, it is treated as a pattern that could never match any string. Likewise, if a haystack is `NA`, it is treated as a string where no needles can be found. Instead of returning `NA`, a vector of length 0 is returned.  
+Since `grepvec` is meant to be used to check for multiple patterns in multiple strings, if a needle is `NA`, it is treated as a pattern that could never match any string. Likewise, if a haystack is `NA`, it is treated as a string where no needles can be found. Instead of returning `NA`, a vector of length 0 is returned.  
 
 
 Ideally, this makes the results easier to work with. For example, it is easier to compare the number of matches across haystacks, since `NA` values would be considered in the length of the vector:  
 
 ```{r}
-lengths(grepvec(NA, letters[1:2]))
-lengths(grep(NA, letters[1:2]))
+length(grepvec(NA, letters)[[1]])
+length(grep(NA, letters))
 
 # NAs contribute to length 
 length(c(NA, NA, 3))
@@ -104,8 +129,10 @@ length(c(NA, NA, 3))
 
 ### UTF-8 everywhere
 
-For now (/out of laziness/out of desire for speed), when strings are compared by `grepvec`, they are first converted to UTF-8 (if needed).  
-R has support for different encodings, but this complicates things. See the statement from the [cpp11 R package](https://cran.r-project.org/web/packages/cpp11/vignettes/motivations.html).  
+~~For now (/out of laziness/out of desire for speed), when strings are compared by `grepvec`, they are first converted to UTF-8 (if needed).  
+R has support for different encodings, but this complicates things. See the statement from the [cpp11 R package](https://cran.r-project.org/web/packages/cpp11/vignettes/motivations.html).~~  
+
+I'm not sure it was worth the effort, but I went ahead and implemented support for multiple encodings. After studying the `base::grep` code, I more or less copied its strategy for character encodings exactly. 
 
 
 
@@ -113,22 +140,4 @@ R has support for different encodings, but this complicates things. See the stat
 ## Development
 I have used `grepvec` in my own work but it lacks testing by other users. If you find it useful please let me know, or let me know how I might improve it to better suit your needs.
 
-Feel free to contribute by creating issues or submitting pull requests.  
-
-Thanks!
-
-## Use Cases
-
-The `grepvec` function provides a convenient way to search a vector of strings (haystacks) for multiple patterns (needles) at once, which is not directly supported by base R functions like grep, or by similair `stringr` functions.
-
-While it's possible to combine multiple patterns into a single regular expression using the "|" operator, this can be difficult to manage for a large number of patterns. Further, it doesn't easily allow you to identify which specific patterns were matched, or how many.
-
-Some potential use cases:  
-
-- Text Analysis: If you're analyzing a corpus of text (like a collection of documents, tweets, or web pages), you might want to find occurrences of a list of specific key words or phrases. `grepvec` can be used to efficiently perform this task.
-
-- Data Cleaning: When cleaning data, you often need to find and replace certain patterns. If you have a list of known errors or inconsistencies (like misspellings or alternative representations of the same value), you can use `grepvec` to identify these in your data.  
-  - Related: it would be interesting to add an "approximate grepvec" (see `?agrep`). This could help with some common headaches in data cleaning like merging a standard set of location names onto messy data.   
-
-- Others?
-
+Feel free to contribute if you wish.  

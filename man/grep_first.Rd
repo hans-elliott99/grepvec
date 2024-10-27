@@ -5,8 +5,8 @@
 \title{Get the first match from a vector of patterns for each string.}
 \usage{
 grep_first(
-  haystacks,
   needles,
+  haystacks,
   ignore_case = FALSE,
   value = FALSE,
   fixed = FALSE,

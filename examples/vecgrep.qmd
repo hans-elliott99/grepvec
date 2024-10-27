@@ -11,6 +11,7 @@ format:
 ```{r}
 # compiled on:
 Sys.info()[c("sysname", "release", "version", "machine")]
+devtools::load_all()
 ```
 
 
@@ -55,6 +56,28 @@ gen_word_list <- function(lines, n = 10) {
 
 ## Examples
 
+
+```{r}
+# grepvec:
+# returns a list of length needles (argument 1)
+grepvec(c("needle", "mice", "dirt"), "A needle in a dirty haystack")
+
+# vecgrep:
+# returns a list of length haystacks (argument 1) - like transposed grepvec
+vecgrep("A needle in a dirty haystack", c("needle", "mice", "dirt"))
+
+# other utils:
+strings <- c("the quick brown fox", "jumps over", "the lazy dog")
+# check if strings contain any of the patterns in the pattern vector 
+grepl_any(c("fox", "dog"), strings)
+# or, equivalent:
+c("fox", "dog") %grepin% strings
+# get the first match in the pattern vector for each string in x
+grep_first(c("quick", "fox", "lazy", "dog"), strings, value = TRUE)
+# count the number of patterns that occur in each string
+grep_count(c("o", "u"), strings)
+```
+
 ```{r}
 words <- gen_word_list(txt, n = 2000)
 
@@ -63,25 +86,86 @@ m1 <- vecgrep(txt[1:500], words, match = "all")
 difftime(Sys.time(), t0)
 
 t0 = Sys.time()
-m <- grep_any(txt[1:500], words)
+m <- grepl_any(words, txt[1:500])
 difftime(Sys.time(), t0)
 
 t0 = Sys.time()
-m <- grep_first(txt[1:500], words)
-difftime(Sys.time(), t0)
-
-
-t0 = Sys.time()
-m <- grep_first(txt[1:500], words, value = TRUE)
+m <- grep_first(words, txt[1:500])
 difftime(Sys.time(), t0)
 
 
 t0 = Sys.time()
-m <- grep_count(txt[1:500], words)
+m <- grep_first(words, txt[1:500], value = TRUE)
 difftime(Sys.time(), t0)
 
+
+t0 = Sys.time()
+m <- grep_count(words, txt[1:500])
+difftime(Sys.time(), t0)
 all(lengths(m1) == m)
 ```
+
+Note: no matter what, it is regex compilation/execution that slows things down. So it makes sense to avoid compiling over and over again. Really, should be concatenating regexes.  
+- The only time it makes sense to leave regexes separate is when we want to return the *patterns* that matched, as opposed to the place in the text where they matched...  
+    - whether or not we ever really want that is a fair question...  
+    - for example, if our patterns are actually a list of place names, and we want to determine which match to each row, then we don't care if it's technically the pattern being returned or the substr of the txt being returned
+
+```{r}
+words <- unique(gen_word_list(txt, 100))
+pattern <- paste(words, collapse = "|")
+substr(pattern, 1, 100)
+
+g <- gregexec(pattern, txt[1:10])
+as.numeric(g[10][[1]])
+regmatches(txt[1:10], g)[10]
+
+```
+
+The innovation of grepvec could be to implement this for arbitrarily long strings because currently this happens:  
+```{r}
+pattern <- paste(gen_word_list(txt, 2000), collapse = "|")
+try(gregexec(pattern, txt[1:10]))
+```
+
+- So figure out what the character limit is in TRE (tre-compile.c) and then implement something that collapses regexes until they reach a certain length:  
+```{r}
+words <- gen_word_list(txt, 2000)
+text  <- txt[1:500]
+
+
+plen <- length(words)
+jumpsize <- 500
+njumps <- ceiling(plen / jumpsize) 
+
+t0 <- Sys.time()
+out <- NULL
+for (it in seq(0, njumps - 1)) {
+    st <- 1 + (it * jumpsize)
+    end <- jumpsize + (it * jumpsize)
+    if (end > plen) end = plen
+    pat <- paste(words[st:end], collapse = "|")
+    g <- gregexec(pat, text)
+    # number of matches
+    num <- lengths(g)
+    # num <- lapply(g, \(x) if (x[1] == -1) 0 else length(x))
+    matches <- regmatches(text, g)
+    # then append to previous...
+}
+difftime(Sys.time(), t0)
+
+# this is about the most words I could concatenate without error
+# (ofc, depends on length of indiv words):
+t0 <- Sys.time()
+. <- gregexpr(paste(words[1:900], collapse = "|"), text)
+difftime(Sys.time(), t0)
+
+t0 <- Sys.time()
+. <- vecgrep(text, words[1:925])
+difftime(Sys.time(), t0)
+
+```
+
+- would also need to optimize jump size because, e.g., 200 is faster than 500 and faster than 10
 
 
 ```{r}
@@ -92,11 +176,10 @@ d <- data.frame(txt_col = txt[1001:2000], match = FALSE)
 match_mask <- unlist(vecgrepl(d$txt_col, pat, match = "first"))
 d[match_mask, "match"] <- TRUE
 
-head(d[grep_any(d$txt_col, pat), ])
-head(subset(d, txt_col %grepin% pat))
+head(d[grepl_any(pat, d$txt_col), ])
+head(subset(d, pat %grepin% d$txt_col)) # equivalent
 
 # example - get first/last pattern that matches to each string
-first = unlist(vecgrep(d$txt_col, pat, keepdim = TRUE, value = TRUE, match = "first"))
 d <- transform(d,
                first = unlist(vecgrep(txt_col, pat,
                                       keepdim = TRUE, value = TRUE, match = "first")),
@@ -107,17 +190,10 @@ head(subset(d, match == TRUE))
 
 # example - get number of matches in a vector
 d <- transform(d,
-               nmatch = grep_count(txt_col, pat))
+               nmatch = grep_count(pat, txt_col))
 head(subset(d, match == TRUE))
 
 # example - keep dimensions to convert to a data.frame
-x <- do.call(rbind,
-             vecgrep(txt[31:35], letters[1:5], keepdim = TRUE))
-x <- as.data.frame(cbind(txt[31:35], x))
-names(x) <- c("line", letters[1:5])
-head(x)
-
-# or use vecgrepl
 x <- do.call(rbind,
              vecgrepl(txt[31:35], letters[1:5]))
 x <- as.data.frame(cbind(txt[31:35], x))
@@ -132,10 +208,10 @@ head(x)
 x <- rep(letters, 100)
 pat <- letters
 microbenchmark(
-    grep_any(x, pat),
-    grep_any(as.factor(x), pat)
+    grepl_any(pat, x),
+    grepl_any(pat, as.factor(x))
 )
-# note - if duplicate patterns, user can call unique on pattern vector first
+# note - if duplicate patterns, user can simply call unique() on pattern vector
 
 ```
 
@@ -143,7 +219,7 @@ microbenchmark(
 
 ```{r big-hay-vec}
 # test vecgrep on some bigger vectors
-hay <- c(txt, txt)
+hay <- txt
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")
@@ -267,11 +343,11 @@ microbenchmark(
 )
 
 p <- gen_word_list(txt, n = 1)
+cat("regex:", p, "\n")
 microbenchmark(
     grep(p, txt),
     vecgrep(txt, p)
 )
-cat("regex:", p, "\n")
 
 ```
 

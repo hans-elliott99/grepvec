@@ -182,12 +182,12 @@ vecgrepl <- function(haystacks,
 #'
 #' @useDynLib grepvec, C_vecmatch
 #' @export
-grep_any <- function(haystacks,
-                     needles,
-                     ignore_case = FALSE,
-                     fixed = FALSE,
-                     use_bytes = FALSE,
-                     invert = FALSE) {
+grepl_any <- function(needles,
+                      haystacks,
+                      ignore_case = FALSE,
+                      fixed = FALSE,
+                      use_bytes = FALSE,
+                      invert = FALSE) {
     fct <- FALSE
     if (is.factor(haystacks)) {
         fct <- TRUE
@@ -211,8 +211,8 @@ grep_any <- function(haystacks,
 #'
 #' @useDynLib grepvec, C_vecmatch
 #' @export
-grep_first <- function(haystacks,
-                       needles,
+grep_first <- function(needles,
+                       haystacks,
                        ignore_case = FALSE,
                        value = FALSE,
                        fixed = FALSE,
@@ -243,8 +243,8 @@ grep_first <- function(haystacks,
 #'
 #' @useDynLib grepvec, C_vecmatch
 #' @export
-grep_count <- function(haystacks,
-                       needles,
+grep_count <- function(needles,
+                       haystacks,
                        ignore_case = FALSE,
                        fixed = FALSE,
                        use_bytes = FALSE,
@@ -269,21 +269,21 @@ grep_count <- function(haystacks,
 }
 
 
-#' @rdname grep_any
+#' @rdname grepl_any
 #' @export
-"%grepin%" <- function(x, patterns) {
-    grep_any(x, patterns,
-             ignore_case = FALSE, fixed = FALSE,
-             use_bytes = FALSE, invert = FALSE)
+"%grepin%" <- function(patterns, x) {
+    grepl_any(patterns, x,
+              ignore_case = FALSE, fixed = FALSE,
+              use_bytes = FALSE, invert = FALSE)
 }
 
 
-#' @rdname grep_any
+#' @rdname grepl_any
 #' @export
-"%igrepin%" <- function(x, patterns) {
-    grep_any(x, patterns,
-             ignore_case = TRUE, fixed = FALSE,
-             use_bytes = FALSE, invert = FALSE)
+"%igrepin%" <- function(patterns, x) {
+    grepl_any(patterns, x,
+              ignore_case = TRUE, fixed = FALSE,
+              use_bytes = FALSE, invert = FALSE)
 }
 
 # TODO:

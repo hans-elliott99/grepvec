@@ -212,18 +212,18 @@ void Riconv_warning_grepvec(int errcode, R_xlen_t idx, int is_haystack) {
     switch (errcode)
     {
     case EILSEQ:
-        warning("invalid multibyte sequence in %s string %d. %s",
+        warning("invalid multibyte sequence in %s string %ld. %s",
                 whichvec, idx, msg);
         break; 
     case EINVAL:
-        warning("incomplete multibyte sequence in %s string %d. %s",
+        warning("incomplete multibyte sequence in %s string %ld. %s",
                 whichvec, idx, msg);
         break;
     case E2BIG:
         warning("internal error, iconv output buffer too small.");
         break;
     default:
-        warning("iconv failed to convert %s string %d to wide char for unkown reason. %s",
+        warning("iconv failed to convert %s string %ld to wide char for unkown reason. %s",
                 whichvec, idx, msg);
     }
 }

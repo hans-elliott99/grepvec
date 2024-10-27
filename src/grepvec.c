@@ -93,6 +93,7 @@ static int Roption(SEXP x, const char *name, int r_type) {
 }
 
 
+// returns true only if strings x and y are both entirely ascii characters
 static int only_ascii(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
     R_xlen_t n = (len_x > len_y) ? len_x : len_y;
     SEXP *xp = STRING_PTR(x);
@@ -109,6 +110,7 @@ static int only_ascii(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
 }
 
 
+// returns true if either x or y contains bytes
 static int have_bytes(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
     R_xlen_t n = (len_x > len_y) ? len_x : len_y;
     SEXP *xp = STRING_PTR(x);
@@ -123,6 +125,7 @@ static int have_bytes(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
 }
 
 
+// returns true if either x or y is utf8
 static int have_utf8(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
     R_xlen_t n = (len_x > len_y) ? len_x : len_y;
     SEXP *xp = STRING_PTR(x);
@@ -137,6 +140,7 @@ static int have_utf8(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
 }
 
 
+// returns true if either x or y is latin1
 static int have_latin1(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
     R_xlen_t n = (len_x > len_y) ? len_x : len_y;
     SEXP *xp = STRING_PTR(x);
@@ -151,6 +155,7 @@ static int have_latin1(SEXP x, SEXP y, R_xlen_t len_x, R_xlen_t len_y) {
 }
 
 
+// returns the "translation type" for the inputs
 static ttype_t get_ttype(SEXP ndl, SEXP hay, int fixed, int bytes) {
     int utf8 = 0;
     R_xlen_t Nndl = XLENGTH(ndl), Nhay = XLENGTH(hay);
@@ -177,7 +182,7 @@ static ttype_t get_ttype(SEXP ndl, SEXP hay, int fixed, int bytes) {
 }
 
 
-/*compare string in string cache at index idx with the regular expression*/
+/*compare string in cache at idx with the given regular expression*/
 static int strrgx(StringCache *cache, RegexInfo *rgxo, R_xlen_t idx) {
     if (rgxo->tt == use_wchar)
         return wstr_rgx_match(cache->warr[idx], &rgxo->rgx);
@@ -185,7 +190,7 @@ static int strrgx(StringCache *cache, RegexInfo *rgxo, R_xlen_t idx) {
 }
 
 
-/*compare string with the regular expression at index idx of the regex cache*/
+/*compare string with the regular expression at idx of the regex cache*/
 static int strrgx2(StringInfo *stro, RegexCache *cache, R_xlen_t idx) {
     if (cache->tt == use_wchar)
         return wstr_rgx_match(stro->wstr, &cache->rarr[idx]);
@@ -194,7 +199,7 @@ static int strrgx2(StringInfo *stro, RegexCache *cache, R_xlen_t idx) {
 
 
 /*
-    for each needle, search for matches in haystacks
+    for each needle, search for matches in haystacks.
     returns a list, length needles
 */
 SEXP C_grepvec(SEXP needles,

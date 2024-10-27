@@ -3,7 +3,6 @@
 \docType{package}
 \name{grepvec-package}
 \alias{grepvec-package}
-\alias{_PACKAGE}
 \title{grepvec package}
 \description{
 Use \code{grepvec} to search a vector of strings for matches in a vector

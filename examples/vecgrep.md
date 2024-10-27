@@ -7,7 +7,7 @@
   solutions](#compare-vecgrep-with-native-r-solutions)
 - [Encodings](#encodings)
 
-2024-03-10 17:49:57.607492
+2024-10-26 20:58:26.586284
 
 ``` r
 # compiled on:
@@ -18,6 +18,12 @@ Sys.info()[c("sysname", "release", "version", "machine")]
                                  "Linux"  "5.10.16.3-microsoft-standard-WSL2" 
                                  version                              machine 
     "#1 SMP Fri Apr 2 22:23:49 UTC 2021"                             "x86_64" 
+
+``` r
+devtools::load_all()
+```
+
+    ℹ Loading grepvec
 
 ``` r
 # make sure you installed in some way
@@ -83,14 +89,205 @@ gen_word_list <- function(lines, n = 10) {
 ## Examples
 
 ``` r
+# grepvec:
+# returns a list of length needles (argument 1)
+grepvec(c("needle", "mice", "dirt"), "A needle in a dirty haystack")
+```
+
+    [[1]]
+    [1] 1
+
+    [[2]]
+    integer(0)
+
+    [[3]]
+    [1] 1
+
+``` r
+# vecgrep:
+# returns a list of length haystacks (argument 1) - like transposed grepvec
+vecgrep("A needle in a dirty haystack", c("needle", "mice", "dirt"))
+```
+
+    [[1]]
+    [1] 1 3
+
+``` r
+# other utils:
+strings <- c("the quick brown fox", "jumps over", "the lazy dog")
+# check if strings contain any of the patterns in the pattern vector 
+grepl_any(c("fox", "dog"), strings)
+```
+
+    [1]  TRUE FALSE  TRUE
+
+``` r
+# or, equivalent:
+c("fox", "dog") %grepin% strings
+```
+
+    [1]  TRUE FALSE  TRUE
+
+``` r
+# get the first match in the pattern vector for each string in x
+grep_first(c("quick", "fox", "lazy", "dog"), strings, value = TRUE)
+```
+
+    [1] "quick" NA      "lazy" 
+
+``` r
+# count the number of patterns that occur in each string
+grep_count(c("o", "u"), strings)
+```
+
+    [1] 2 2 1
+
+``` r
 words <- gen_word_list(txt, n = 2000)
 
 t0 = Sys.time()
-m <- vecgrep(txt[1:500], words, match = "all")
+m1 <- vecgrep(txt[1:500], words, match = "all")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.3741214 secs
+    Time difference of 0.6469839 secs
+
+``` r
+t0 = Sys.time()
+m <- grepl_any(words, txt[1:500])
+difftime(Sys.time(), t0)
+```
+
+    Time difference of 0.07104111 secs
+
+``` r
+t0 = Sys.time()
+m <- grep_first(words, txt[1:500])
+difftime(Sys.time(), t0)
+```
+
+    Time difference of 0.07102871 secs
+
+``` r
+t0 = Sys.time()
+m <- grep_first(words, txt[1:500], value = TRUE)
+difftime(Sys.time(), t0)
+```
+
+    Time difference of 0.06845689 secs
+
+``` r
+t0 = Sys.time()
+m <- grep_count(words, txt[1:500])
+difftime(Sys.time(), t0)
+```
+
+    Time difference of 0.6283624 secs
+
+``` r
+all(lengths(m1) == m)
+```
+
+    [1] TRUE
+
+Note: no matter what, it is regex compilation/execution that slows
+things down. So it makes sense to avoid compiling over and over again.
+Really, should be concatenating regexes.  
+- The only time it makes sense to leave regexes separate is when we want
+to return the *patterns* that matched, as opposed to the place in the
+text where they matched…  
+- whether or not we ever really want that is a fair question…  
+- for example, if our patterns are actually a list of place names, and
+we want to determine which match to each row, then we don’t care if it’s
+technically the pattern being returned or the substr of the txt being
+returned
+
+``` r
+words <- unique(gen_word_list(txt, 100))
+pattern <- paste(words, collapse = "|")
+substr(pattern, 1, 100)
+```
+
+    [1] "in|leave|Our|dearer|To|Beg|FLUELLEN|truth|her|so|brother|must|should|glove|us|takes|thy|King|Know|le"
+
+``` r
+g <- gregexec(pattern, txt[1:10])
+as.numeric(g[10][[1]])
+```
+
+    [1]  7 17 34 39
+
+``` r
+regmatches(txt[1:10], g)[10]
+```
+
+    [[1]]
+         [,1] [,2] [,3] [,4]
+    [1,] "a"  "a"  "in" "as"
+
+The innovation of grepvec could be to implement this for arbitrarily
+long strings because currently this happens:
+
+``` r
+pattern <- paste(gen_word_list(txt, 2000), collapse = "|")
+try(gregexec(pattern, txt[1:10]))
+```
+
+    Error in gregexpr(pattern = pattern, text = text, ignore.case = ignore.case,  : 
+      assertion 'tree->num_tags == num_tags' failed in executing regexp: file 'tre-compile.c', line 634
+
+- So figure out what the character limit is in TRE (tre-compile.c) and
+  then implement something that collapses regexes until they reach a
+  certain length:
+
+``` r
+words <- gen_word_list(txt, 2000)
+text  <- txt[1:500]
+
+
+plen <- length(words)
+jumpsize <- 500
+njumps <- ceiling(plen / jumpsize) 
+
+t0 <- Sys.time()
+out <- NULL
+for (it in seq(0, njumps - 1)) {
+    st <- 1 + (it * jumpsize)
+    end <- jumpsize + (it * jumpsize)
+    if (end > plen) end = plen
+    pat <- paste(words[st:end], collapse = "|")
+    g <- gregexec(pat, text)
+    # number of matches
+    num <- lengths(g)
+    # num <- lapply(g, \(x) if (x[1] == -1) 0 else length(x))
+    matches <- regmatches(text, g)
+    # then append to previous...
+}
+difftime(Sys.time(), t0)
+```
+
+    Time difference of 13.19791 secs
+
+``` r
+# this is about the most words I could concatenate without error
+# (ofc, depends on length of indiv words):
+t0 <- Sys.time()
+. <- gregexpr(paste(words[1:900], collapse = "|"), text)
+difftime(Sys.time(), t0)
+```
+
+    Time difference of 0.2198954 secs
+
+``` r
+t0 <- Sys.time()
+. <- vecgrep(text, words[1:925])
+difftime(Sys.time(), t0)
+```
+
+    Time difference of 0.3069727 secs
+
+- would also need to optimize jump size because, e.g., 200 is faster
+  than 500 and faster than 10
 
 ``` r
 pat <- gen_word_list(txt, 500) # your vector of patterns
@@ -100,9 +297,31 @@ d <- data.frame(txt_col = txt[1001:2000], match = FALSE)
 match_mask <- unlist(vecgrepl(d$txt_col, pat, match = "first"))
 d[match_mask, "match"] <- TRUE
 
+head(d[grepl_any(pat, d$txt_col), ])
+```
 
+                                             txt_col match
+    1       Even of five hundred courses of the sun,  TRUE
+    2       Show me your image in some antique book,  TRUE
+    3     Since mind at first in character was done.  TRUE
+    4 That I might see what the old world could say,  TRUE
+    5         To this composed wonder of your frame,  TRUE
+    6 Whether we are mended, or whether better they,  TRUE
+
+``` r
+head(subset(d, pat %grepin% d$txt_col)) # equivalent
+```
+
+                                             txt_col match
+    1       Even of five hundred courses of the sun,  TRUE
+    2       Show me your image in some antique book,  TRUE
+    3     Since mind at first in character was done.  TRUE
+    4 That I might see what the old world could say,  TRUE
+    5         To this composed wonder of your frame,  TRUE
+    6 Whether we are mended, or whether better they,  TRUE
+
+``` r
 # example - get first/last pattern that matches to each string
-first = unlist(vecgrep(d$txt_col, pat, keepdim = TRUE, value = TRUE, match = "first"))
 d <- transform(d,
                first = unlist(vecgrep(txt_col, pat,
                                       keepdim = TRUE, value = TRUE, match = "first")),
@@ -112,41 +331,82 @@ d <- transform(d,
 head(subset(d, match == TRUE))
 ```
 
-                                             txt_col match first last
-    1       Even of five hundred courses of the sun,  TRUE    th   th
-    2       Show me your image in some antique book,  TRUE    me  you
-    3     Since mind at first in character was done.  TRUE    at    a
-    4 That I might see what the old world could say,  TRUE     I That
-    5         To this composed wonder of your frame,  TRUE    is   To
-    6 Whether we are mended, or whether better they,  TRUE    me   or
+                                             txt_col match first  last
+    1       Even of five hundred courses of the sun,  TRUE    he    he
+    2       Show me your image in some antique book,  TRUE    so    so
+    3     Since mind at first in character was done.  TRUE   was first
+    4 That I might see what the old world could say,  TRUE    he   say
+    5         To this composed wonder of your frame,  TRUE   you    me
+    6 Whether we are mended, or whether better they,  TRUE    we   men
+
+``` r
+# example - get number of matches in a vector
+d <- transform(d,
+               nmatch = grep_count(pat, txt_col))
+head(subset(d, match == TRUE))
+```
+
+                                             txt_col match first  last nmatch
+    1       Even of five hundred courses of the sun,  TRUE    he    he      1
+    2       Show me your image in some antique book,  TRUE    so    so     10
+    3     Since mind at first in character was done.  TRUE   was first      2
+    4 That I might see what the old world could say,  TRUE    he   say      4
+    5         To this composed wonder of your frame,  TRUE   you    me      5
+    6 Whether we are mended, or whether better they,  TRUE    we   men     11
 
 ``` r
 # example - keep dimensions to convert to a data.frame
 x <- do.call(rbind,
-             vecgrep(txt[31:35], letters[1:5], keepdim = TRUE))
+             vecgrepl(txt[31:35], letters[1:5]))
 x <- as.data.frame(cbind(txt[31:35], x))
 names(x) <- c("line", letters[1:5])
 head(x)
 ```
 
-                                                  line a    b    c d e
-    1     Then being asked, where all thy beauty lies, 1    2 <NA> 4 5
-    2        Where all the treasure of thy lusty days; 1 <NA> <NA> 4 5
-    3        To say within thine own deep sunken eyes, 1 <NA> <NA> 4 5
-    4 Were an all-eating shame, and thriftless praise. 1 <NA> <NA> 4 5
-    5  How much more praise deserved thy beauty's use, 1    2    3 4 5
+                                                  line    a     b     c    d    e
+    1     Then being asked, where all thy beauty lies, TRUE  TRUE FALSE TRUE TRUE
+    2        Where all the treasure of thy lusty days; TRUE FALSE FALSE TRUE TRUE
+    3        To say within thine own deep sunken eyes, TRUE FALSE FALSE TRUE TRUE
+    4 Were an all-eating shame, and thriftless praise. TRUE FALSE FALSE TRUE TRUE
+    5  How much more praise deserved thy beauty's use, TRUE  TRUE  TRUE TRUE TRUE
+
+``` r
+#
+# other examples
+#
+
+# example - factor speedup when duplicate haystacks
+x <- rep(letters, 100)
+pat <- letters
+microbenchmark(
+    grepl_any(pat, x),
+    grepl_any(pat, as.factor(x))
+)
+```
+
+    Unit: microseconds
+                             expr    min      lq     mean median      uq    max
+                grepl_any(pat, x) 2503.0 2846.55 3128.832 3004.1 3270.85 5078.4
+     grepl_any(pat, as.factor(x))  141.6  168.10  243.539  199.4  286.20  668.3
+     neval
+       100
+       100
+
+``` r
+# note - if duplicate patterns, user can simply call unique() on pattern vector
+```
 
 ## Speed
 
 ``` r
 # test vecgrep on some bigger vectors
-hay <- c(txt, txt)
+hay <- txt
 ndl <- words
 cat("N Hay =", format(length(hay), big.mark = ","),
     "| N Needle =", format(length(ndl), big.mark = ","), "\n")
 ```
 
-    N Hay = 248,388 | N Needle = 2,000 
+    N Hay = 124,194 | N Needle = 2,000 
 
 ``` r
 t0 <- Sys.time()
@@ -156,7 +416,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 3.313463 mins
+    Time difference of 3.232874 mins
 
 ``` r
 #
@@ -169,7 +429,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 17.47421 secs
+    Time difference of 19.45347 secs
 
 ``` r
 #
@@ -183,7 +443,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 7.027064 secs
+    Time difference of 5.127629 secs
 
 ``` r
 t0 <- Sys.time()
@@ -193,7 +453,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.7360201 secs
+    Time difference of 0.5578504 secs
 
 ## Compare vecgrep with native R solutions
 
@@ -275,13 +535,13 @@ microbenchmark(loop_grep(shortndls, shorttxt),
 
     Unit: milliseconds
                                  expr     min      lq     mean  median      uq
-       loop_grep(shortndls, shorttxt) 20.2980 21.4206 22.27238 22.1877 22.8881
-     lapply_grep(shortndls, shorttxt) 21.0915 21.4443 22.70309 22.7270 23.8800
-         vecgrep(shorttxt, shortndls) 18.9395 19.1817 20.36243 20.3597 21.2187
+       loop_grep(shortndls, shorttxt) 21.7421 22.5561 28.30216 26.7590 34.0367
+     lapply_grep(shortndls, shorttxt) 22.1933 22.5605 27.30439 29.0238 30.9864
+         vecgrep(shorttxt, shortndls) 33.6157 33.7571 36.99934 34.7196 34.7771
          max neval
-     24.8425    10
-     24.7850    10
-     22.4110    10
+     37.0058    10
+     31.8017    10
+     49.3853    10
 
 ``` r
 microbenchmark(
@@ -292,11 +552,11 @@ microbenchmark(
 
     Unit: microseconds
                                                                    expr  min   lq
-        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.9 14.3
-     vecgrep("some-email$grep.com", "^[[:alnum:]._-]+@[[:alnum:].-]+$") 27.0 27.7
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 16.3 17.2
+     vecgrep("some-email$grep.com", "^[[:alnum:]._-]+@[[:alnum:].-]+$") 48.5 50.2
        mean median    uq   max neval
-     15.239  15.05 15.40  30.1   100
-     30.654  28.60 29.85 141.1   100
+     19.328   19.0 19.60  40.6   100
+     55.481   51.3 52.25 327.8   100
 
 ``` r
 microbenchmark(
@@ -306,15 +566,21 @@ microbenchmark(
 ```
 
     Unit: microseconds
-                                                expr  min   lq   mean median    uq
-        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.2  4.5  5.403    5.4  5.55
-     vecgrep("name@server.com", "([^ @]+)@([^ @]+)") 16.2 16.9 18.907   17.3 17.70
-      max neval
-     18.5   100
-     72.7   100
+                                                expr  min    lq   mean median    uq
+        grep("([^ @]+)@([^ @]+)", "name@server.com")  5.0  5.35  6.895   6.70  7.10
+     vecgrep("name@server.com", "([^ @]+)@([^ @]+)") 26.2 27.05 28.899  27.75 28.35
+       max neval
+      55.0   100
+     102.3   100
 
 ``` r
 p <- gen_word_list(txt, n = 1)
+cat("regex:", p, "\n")
+```
+
+    regex: has 
+
+``` r
 microbenchmark(
     grep(p, txt),
     vecgrep(txt, p)
@@ -322,15 +588,9 @@ microbenchmark(
 ```
 
     Unit: milliseconds
-                expr     min      lq     mean  median       uq      max neval
-        grep(p, txt) 52.8362 54.6549 56.19072 55.9402 57.25255  67.0220   100
-     vecgrep(txt, p) 55.1091 59.1243 63.98801 61.1709 66.63960 134.4896   100
-
-``` r
-cat("regex:", p, "\n")
-```
-
-    regex: Haply 
+                expr      min        lq     mean    median        uq      max neval
+        grep(p, txt)  62.8447  65.73635  73.8310  71.26345  78.36615 102.9796   100
+     vecgrep(txt, p) 102.2551 110.96270 125.6342 121.16730 137.16210 201.1386   100
 
 ## Encodings
 

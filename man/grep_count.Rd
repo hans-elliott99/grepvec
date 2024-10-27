@@ -5,8 +5,8 @@
 \title{Count the number of matches in a vector of patterns for each string.}
 \usage{
 grep_count(
-  haystacks,
   needles,
+  haystacks,
   ignore_case = FALSE,
   fixed = FALSE,
   use_bytes = FALSE,

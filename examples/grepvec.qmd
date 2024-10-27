@@ -11,11 +11,13 @@ format:
 ```{r}
 # compiled on:
 Sys.info()[c("sysname", "release", "version", "machine")]
+
+devtools::load_all()
 ```
 
 
 ```{r}
-# make sure you installed in some way
+# make sure you installed in some way - e.g., devtools::load_all()
 library(grepvec)
 library(microbenchmark)
 set.seed(1614)
@@ -63,6 +65,7 @@ grepvec("gr(a|e)y", c("grey", "gray"))
 grepl("gr(a|e)y", c("grey", "gray"))
 greplvec("gr(a|e)y", c("grey", "gray"))
 
+# patterns: looking for words that start with a and for digits
 grepvec(c("^a", "\\d"), c("1", "apple"))
 lapply(c("^a", "\\d"), \(p) grep(p, c("1", "apple")))
 
@@ -84,6 +87,7 @@ grepvec("^fixed$", "fixed", fixed = TRUE)
 ```{r}
 words <- gen_word_list(txt, n = 2000)
 
+# look for 2000 patterns in strings
 t0 = Sys.time()
 m <- grepvec(words, txt[1:500], match = "all")
 difftime(Sys.time(), t0)
@@ -151,17 +155,17 @@ head(d[unique(unlist(grepvec(pat, d$txt_col, match = "first"))), ])
 keywords <- gen_word_list(d$txt_col, 3)
 cat("searching for patterns:", paste0(keywords, collapse = ", "), "\n")
 
-d[, keywords] <- 0
-(ixs <- unlist(grepvec(keywords, d$txt_col, match = "first")))
+d[, c(keywords)] <- 0
+(ixs <- unlist(grepvec(keywords, d$txt_col, match = "first")))  # row ixs of matching strings
 
 for (i in seq_along(keywords))
     d[ixs[i], keywords[i]] <- 1
-## see some results
-d[c(1:2, unlist(ixs)), ]
+
+print(d[c(1:2, unlist(ixs)), ])
 
 # example - getting the last match is as quick and easy as getting the first
-grepvec(pat[1:2], txt, match = "first")
-grepvec(pat[1:2], rev(txt), match = "first")
+grepvec(pat[1:2], txt, match = "first", value = TRUE)
+grepvec(pat[1:2], rev(txt), match = "first", value = TRUE)
 
 # example - keep dimensions to convert to a data.frame
 x <- do.call(cbind.data.frame,
@@ -369,7 +373,7 @@ grepvec("premi.re", lat1)
 # should still work...
 
 # these strings are encoded differently, and thus their bytes do not match
-pat <- iconv("prem.ère", to = "latin1")
+pat <- iconv("première", to = "latin1")
 x <- "première"
 # accented e (ie, "e with grave") is a single byte in latin1, 2 bytes in utf8
 charToRaw(pat)

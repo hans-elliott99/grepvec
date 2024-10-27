@@ -7,7 +7,7 @@
   solutions](#compare-grepvec-with-native-r-solutions)
 - [Encodings](#encodings)
 
-2024-03-10 17:43:22.003366
+2024-10-26 19:39:10.307554
 
 ``` r
 # compiled on:
@@ -20,7 +20,13 @@ Sys.info()[c("sysname", "release", "version", "machine")]
     "#1 SMP Fri Apr 2 22:23:49 UTC 2021"                             "x86_64" 
 
 ``` r
-# make sure you installed in some way
+devtools::load_all()
+```
+
+    ℹ Loading grepvec
+
+``` r
+# make sure you installed in some way - e.g., devtools::load_all()
 library(grepvec)
 library(microbenchmark)
 set.seed(1614)
@@ -109,6 +115,7 @@ greplvec("gr(a|e)y", c("grey", "gray"))
     [1] TRUE TRUE
 
 ``` r
+# patterns: looking for words that start with a and for digits
 grepvec(c("^a", "\\d"), c("1", "apple"))
 ```
 
@@ -178,12 +185,13 @@ grepvec("^fixed$", "fixed", fixed = TRUE)
 ``` r
 words <- gen_word_list(txt, n = 2000)
 
+# look for 2000 patterns in strings
 t0 = Sys.time()
 m <- grepvec(words, txt[1:500], match = "all")
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.4134016 secs
+    Time difference of 0.6636658 secs
 
 ``` r
 # base R version
@@ -192,7 +200,7 @@ m2 <- lapply(words, grep, x = txt[1:500])
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.4290156 secs
+    Time difference of 0.4212761 secs
 
 ``` r
 microbenchmark(
@@ -204,11 +212,11 @@ microbenchmark(
 
     Unit: milliseconds
                                      expr      min       lq     mean   median
-               grepvec(words, txt[1:500]) 428.6035 440.2078 462.8100 458.0745
-     lapply(words, grepl, x = txt[1:500]) 428.8009 436.4146 472.2485 454.4562
+               grepvec(words, txt[1:500]) 623.6425 628.8339 653.8519 645.3293
+     lapply(words, grepl, x = txt[1:500]) 400.1338 408.2589 418.0277 412.7009
            uq      max neval
-     477.0245 514.8989    10
-     480.7258 600.7642    10
+     658.0563 740.5152    10
+     426.8104 446.1828    10
 
 By default, if no match is found a 0 length vector is returned.  
 This can be convenient if you want to compare the number of string
@@ -365,8 +373,8 @@ cat("searching for patterns:", paste0(keywords, collapse = ", "), "\n")
     searching for patterns: before, long, thou 
 
 ``` r
-d[, keywords] <- 0
-(ixs <- unlist(grepvec(keywords, d$txt_col, match = "first")))
+d[, c(keywords)] <- 0
+(ixs <- unlist(grepvec(keywords, d$txt_col, match = "first")))  # row ixs of matching strings
 ```
 
     [1]  15 145  32
@@ -374,8 +382,8 @@ d[, keywords] <- 0
 ``` r
 for (i in seq_along(keywords))
     d[ixs[i], keywords[i]] <- 1
-## see some results
-d[c(1:2, unlist(ixs)), ]
+
+print(d[c(1:2, unlist(ixs)), ])
 ```
 
                                                  txt_col match before long thou
@@ -387,24 +395,24 @@ d[c(1:2, unlist(ixs)), ]
 
 ``` r
 # example - getting the last match is as quick and easy as getting the first
-grepvec(pat[1:2], txt, match = "first")
+grepvec(pat[1:2], txt, match = "first", value = TRUE)
 ```
 
     [[1]]
-    [1] 71
+    [1] "Then how when nature calls thee to be gone,"
 
     [[2]]
-    [1] 253
+    [1] "Cheered and checked even by the self-same sky:"
 
 ``` r
-grepvec(pat[1:2], rev(txt), match = "first")
+grepvec(pat[1:2], rev(txt), match = "first", value = TRUE)
 ```
 
     [[1]]
-    [1] 668
+    [1] "all greediness of affection are they gone, and there they intend"
 
     [[2]]
-    [1] 694
+    [1] "which aided to expose the child were even then lost when it was"
 
 ``` r
 # example - keep dimensions to convert to a data.frame
@@ -507,7 +515,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 3.730986 mins
+    Time difference of 6.521642 mins
 
 ``` r
 #
@@ -520,7 +528,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 21.6817 secs
+    Time difference of 36.69547 secs
 
 ``` r
 #
@@ -534,7 +542,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 10.78141 secs
+    Time difference of 14.03721 secs
 
 ``` r
 t0 <- Sys.time()
@@ -544,7 +552,7 @@ suppressWarnings({
 difftime(Sys.time(), t0)
 ```
 
-    Time difference of 0.8776286 secs
+    Time difference of 1.213726 secs
 
 ## Compare grepvec with native R solutions
 
@@ -594,15 +602,15 @@ microbenchmark(loop_grep(shortndls, shorttxt),
 
     Unit: milliseconds
                                         expr      min       lq     mean   median
-              loop_grep(shortndls, shorttxt) 410.6130 417.0674 429.6828 427.7767
-     lapply_grep_lambda(shortndls, shorttxt) 425.5619 427.5859 436.6493 437.2591
-            lapply_grep(shortndls, shorttxt) 413.6365 422.7303 434.0889 434.0046
-                grepvec(shortndls, shorttxt) 401.5897 405.8104 420.5835 423.2233
+              loop_grep(shortndls, shorttxt) 433.0937 442.3992 476.4123 470.4910
+     lapply_grep_lambda(shortndls, shorttxt) 427.2126 445.2814 468.3401 461.0764
+            lapply_grep(shortndls, shorttxt) 435.8679 461.5013 488.5499 478.0039
+                grepvec(shortndls, shorttxt) 685.7583 690.4833 724.7452 715.9755
            uq      max neval
-     441.8245 449.5912    10
-     442.0465 448.3361    10
-     450.0992 455.4186    10
-     430.5148 439.3942    10
+     502.4683 551.7448    10
+     498.1374 523.3131    10
+     489.7930 646.3338    10
+     750.6590 804.5887    10
 
 Some comparisons with `base::grep`:
 
@@ -627,11 +635,11 @@ microbenchmark(
 
     Unit: microseconds
                                                                    expr  min   lq
-        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 13.3 13.9
-     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 26.9 28.0
+        grep("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 15.4 15.9
+     grepvec("^[[:alnum:]._-]+@[[:alnum:].-]+$", "some-email@grep.com") 46.0 47.4
        mean median   uq   max neval
-     14.922   14.6 15.0  33.0   100
-     30.862   28.8 29.3 119.5   100
+     17.296   17.3 17.6  33.4   100
+     51.612   48.0 49.2 193.6   100
 
 ``` r
 microbenchmark(
@@ -641,12 +649,12 @@ microbenchmark(
 ```
 
     Unit: microseconds
-                                                expr  min   lq   mean median   uq
-        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.1  4.6  5.278   5.35  5.6
-     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 16.4 17.4 19.607  17.75 18.5
+                                                expr  min   lq   mean median    uq
+        grep("([^ @]+)@([^ @]+)", "name@server.com")  4.6  5.1  6.260    5.9  6.35
+     grepvec("([^ @]+)@([^ @]+)", "name@server.com") 24.8 26.0 30.461   26.6 28.15
       max neval
-     15.8   100
-     78.7   100
+     17.6   100
+     94.0   100
 
 ``` r
 microbenchmark(
@@ -659,9 +667,9 @@ microbenchmark(
                                                                                                     expr
         grep("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
      grepvec("([0-9][0-9]?)/([0-9][0-9]?)/([0-9][0-9]([0-9][0-9])?)",      c("01/01/1996", "2001-01-1"))
-      min    lq   mean median    uq  max neval
-      5.4  5.80  6.811   6.45  6.80 27.5   100
-     17.9 18.55 20.664  19.05 19.55 66.6   100
+      min   lq   mean median   uq  max neval
+      5.8  6.1  7.014   6.80  7.1 35.0   100
+     26.1 27.1 28.961  27.55 28.4 74.9   100
 
 ``` r
 p <- gen_word_list(txt, n = 1)
@@ -672,9 +680,9 @@ microbenchmark(
 ```
 
     Unit: milliseconds
-                expr     min       lq     mean   median       uq     max neval
-        grep(p, txt) 60.4518 64.23655 65.03119 64.94585 65.67475 73.5548   100
-     grepvec(p, txt) 59.1060 62.73815 63.82789 63.80185 64.89565 71.7922   100
+                expr     min       lq      mean   median       uq      max neval
+        grep(p, txt) 61.6235 64.96285  69.08975  68.1168  70.7252 106.1169   100
+     grepvec(p, txt) 92.6092 97.20335 102.60931 101.6865 105.8081 139.1358   100
 
 ``` r
 cat("regex:", p, "\n")
@@ -836,13 +844,13 @@ grepvec("premi.re", lat1)
 # should still work...
 
 # these strings are encoded differently, and thus their bytes do not match
-pat <- iconv("prem.ère", to = "latin1")
+pat <- iconv("première", to = "latin1")
 x <- "première"
 # accented e (ie, "e with grave") is a single byte in latin1, 2 bytes in utf8
 charToRaw(pat)
 ```
 
-    [1] 70 72 65 6d 2e e8 72 65
+    [1] 70 72 65 6d 69 e8 72 65
 
 ``` r
 charToRaw(x) 

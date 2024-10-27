@@ -2,9 +2,9 @@
 
 export("%grepin%")
 export("%igrepin%")
-export(grep_any)
 export(grep_count)
 export(grep_first)
+export(grepl_any)
 export(greplvec)
 export(grepvec)
 export(vecgrep)
